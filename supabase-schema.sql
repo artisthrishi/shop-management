@@ -2344,9 +2344,6 @@ CREATE TABLE public.products (
     name text NOT NULL,
     category text,
     brand text,
-    unit_id integer NOT NULL,
-    min_stock numeric(12,3) DEFAULT 0,
-    location text,
     created_at timestamp with time zone DEFAULT now(),
     created_by uuid
 );

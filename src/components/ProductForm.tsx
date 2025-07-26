@@ -67,7 +67,22 @@ export default function ProductForm({ onClose, onSave, initialData }: ProductFor
   // Map initialData.variations or product_variations to Variation[] for editing
   const mapInitialVariations = (data: { name?: string; brand?: string; category?: string; created_by?: string | null; variations?: ProductVariationFormData[] } | undefined): VariationUI[] => {
     if (!data || !data.variations) return [
-      { name: '', unit_id: 1, purchase_price: 0, selling_price: 0, opening_stock: 0, min_stock: 0, location: '' },
+      { 
+        name: '', 
+        unit_id: 1, 
+        purchase_price: 0, 
+        selling_price: 0, 
+        opening_stock: 0, 
+        min_stock: 0, 
+        location: '',
+        // Initialize UI state fields
+        _stockInput: '',
+        _minStockInput: '',
+        _mainStock: '',
+        _subStock: '',
+        _mainMinStock: '',
+        _subMinStock: '',
+      },
     ];
     const variations = data.variations;
     return variations.map((v: ProductVariationFormData) => ({
@@ -95,6 +110,7 @@ export default function ProductForm({ onClose, onSave, initialData }: ProductFor
   const [savedVariations, setSavedVariations] = useState<VariationUI[]>([]);
   const [confirmDeleteIdx, setConfirmDeleteIdx] = useState<number | null>(null);
   const [confirmClose, setConfirmClose] = useState(false);
+  const [isAddingVariation, setIsAddingVariation] = useState(!initialData?.variations?.length);
 
   useEffect(() => {
     getUnits().then(units => {
@@ -123,8 +139,24 @@ export default function ProductForm({ onClose, onSave, initialData }: ProductFor
   const addVariation = () => {
     setVariations((prev) => [
       ...prev,
-      { name: '', unit_id: units[0]?.id || 1, purchase_price: 0, selling_price: 0, opening_stock: 0, min_stock: 0, location: '' },
+      { 
+        name: '', 
+        unit_id: units[0]?.id || 1, 
+        purchase_price: 0, 
+        selling_price: 0, 
+        opening_stock: 0, 
+        min_stock: 0, 
+        location: '',
+        // Initialize UI state fields
+        _stockInput: '',
+        _minStockInput: '',
+        _mainStock: '',
+        _subStock: '',
+        _mainMinStock: '',
+        _subMinStock: '',
+      },
     ]);
+    setIsAddingVariation(true);
   };
 
   const removeVariation = (idx: number) => {
@@ -206,10 +238,7 @@ export default function ProductForm({ onClose, onSave, initialData }: ProductFor
       }
     }
 
-    // Validate location
-    if (!variation.location.trim()) {
-      errors.location = 'Location is required';
-    }
+    // Location is optional, so no validation needed
 
     return errors;
   };
@@ -272,12 +301,30 @@ export default function ProductForm({ onClose, onSave, initialData }: ProductFor
 
     // Move the saved variation to savedVariations
     setSavedVariations(prev => [...prev, v]);
-    // Remove the saved variation from variations and add a new empty one
+    // Remove the saved variation from variations and add a new empty one with UI state fields
     setVariations((prev) => [
       ...prev.slice(0, idx),
       ...prev.slice(idx + 1),
-      { name: '', unit_id: units[0]?.id || 1, purchase_price: 0, selling_price: 0, opening_stock: 0, min_stock: 0, location: '' },
+      { 
+        name: '', 
+        unit_id: units[0]?.id || 1, 
+        purchase_price: 0, 
+        selling_price: 0, 
+        opening_stock: 0, 
+        min_stock: 0, 
+        location: '',
+        // Initialize UI state fields
+        _stockInput: '',
+        _minStockInput: '',
+        _mainStock: '',
+        _subStock: '',
+        _mainMinStock: '',
+        _subMinStock: '',
+      },
     ]);
+    
+    // Reset the adding state
+    setIsAddingVariation(false);
     
     toast.success('Variation saved successfully!');
   };
@@ -478,11 +525,274 @@ export default function ProductForm({ onClose, onSave, initialData }: ProductFor
           <div className="mt-6">
             <div className="flex items-center justify-between mb-2">
               <h3 className="font-semibold text-gray-900 text-lg">{t('inventory.addVariation', 'Product Variations')}</h3>
-              <button type="button" onClick={addVariation} className="flex items-center text-blue-600 hover:underline">
+              <button 
+                type="button" 
+                onClick={addVariation} 
+                disabled={isAddingVariation}
+                className={`flex items-center ${
+                  isAddingVariation 
+                    ? 'text-gray-400 cursor-not-allowed' 
+                    : 'text-blue-600 hover:underline'
+                }`}
+              >
                 <PlusIcon className="w-5 h-5 mr-1" /> {t('inventory.addVariation', 'Add Variation')}
               </button>
             </div>
             <div className="space-y-4">
+              {/* Add New Variation Form */}
+              {isAddingVariation && (() => {
+                const v = variations[variations.length - 1];
+                const idx = variations.length - 1;
+                const unit = units.find(u => u.id === v.unit_id);
+                const selectedUnit = unit || { name: '', subunit_name: '', subunit_factor: 1 };
+                const isKg = selectedUnit.subunit_name && selectedUnit.subunit_factor;
+                
+                return (
+                  <div className="border-2 border-dashed border-blue-300 rounded-lg p-4 mb-4 bg-blue-50">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="font-semibold text-blue-900">Add New Variation</h3>
+                      <button 
+                        onClick={() => {
+                          setVariations(prev => prev.filter((_, i) => i !== prev.length - 1));
+                          setIsAddingVariation(false);
+                        }} 
+                        className="text-gray-500 hover:text-gray-700"
+                      >
+                        <XMarkIcon className="w-5 h-5" />
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 items-center">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">{t('inventory.variationName', 'Name')}</label>
+                        <input
+                          className={`w-full border rounded px-2 py-1 text-gray-900 placeholder-gray-500 ${
+                            validationErrors.variations?.[idx]?.name ? 'border-red-500' : ''
+                          }`}
+                          placeholder={t('inventory.variationName', 'Name')}
+                          value={v.name}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleVariationChange(idx, 'name', e.target.value)}
+                        />
+                        {validationErrors.variations?.[idx]?.name && (
+                          <p className="text-red-600 text-xs mt-1">{validationErrors.variations[idx].name}</p>
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">{t('inventory.unit', 'Unit')}</label>
+                        <select
+                          className={`w-full border rounded px-2 py-1 text-gray-900 ${
+                            validationErrors.variations?.[idx]?.unit_id ? 'border-red-500' : ''
+                          }`}
+                          value={v.unit_id}
+                          onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleVariationChange(idx, 'unit_id', Number(e.target.value))}
+                        >
+                          {units.map((unit) => (
+                            <option key={unit.id} value={unit.id}>
+                              {unit.name}{unit.full_name ? ` (${unit.full_name})` : ''}
+                            </option>
+                          ))}
+                        </select>
+                        {validationErrors.variations?.[idx]?.unit_id && (
+                          <p className="text-red-600 text-xs mt-1">{validationErrors.variations[idx].unit_id}</p>
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">{t('inventory.purchasePrice', 'Purchase Price')}</label>
+                        <input
+                          className={`w-full border rounded px-2 py-1 text-gray-900 placeholder-gray-500 ${
+                            validationErrors.variations?.[idx]?.purchase_price ? 'border-red-500' : ''
+                          }`}
+                          type="number"
+                          placeholder={t('inventory.purchasePrice', 'Purchase Price')}
+                          value={v.purchase_price || ''}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleVariationChange(idx, 'purchase_price', Number(e.target.value))}
+                        />
+                        {validationErrors.variations?.[idx]?.purchase_price && (
+                          <p className="text-red-600 text-xs mt-1">{validationErrors.variations[idx].purchase_price}</p>
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">{t('inventory.sellingPrice', 'Selling Price')}</label>
+                        <input
+                          className={`w-full border rounded px-2 py-1 text-gray-900 placeholder-gray-500 ${
+                            validationErrors.variations?.[idx]?.selling_price ? 'border-red-500' : ''
+                          }`}
+                          type="number"
+                          placeholder={t('inventory.sellingPrice', 'Selling Price')}
+                          value={v.selling_price || ''}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleVariationChange(idx, 'selling_price', Number(e.target.value))}
+                        />
+                        {validationErrors.variations?.[idx]?.selling_price && (
+                          <p className="text-red-600 text-xs mt-1">{validationErrors.variations[idx].selling_price}</p>
+                        )}
+                      </div>
+                      <div className="col-span-2">
+                        <label className="block text-xs font-medium text-gray-700 mb-1">{t('inventory.openingStock', 'Opening Stock')}</label>
+                        {isKg ? (
+                          <div className="flex items-center gap-2">
+                            <input
+                              className={`w-16 border rounded px-2 py-1 text-gray-900 placeholder-gray-500 ${
+                                validationErrors.variations?.[idx]?.opening_stock ? 'border-red-500' : ''
+                              }`}
+                              type="number"
+                              min="0"
+                              placeholder={selectedUnit.name}
+                              value={v._mainStock ?? ''}
+                              onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleVariationChange(idx, '_mainStock', e.target.value)}
+                              onWheel={e => e.currentTarget.blur()}
+                            />
+                            <span className="text-gray-700 text-sm">{selectedUnit.name}</span>
+                            <input
+                              className={`w-16 border rounded px-2 py-1 text-gray-900 placeholder-gray-500 ${
+                                validationErrors.variations?.[idx]?.opening_stock ? 'border-red-500' : ''
+                              }`}
+                              type="number"
+                              min="0"
+                              placeholder={selectedUnit.subunit_name}
+                              value={v._subStock ?? ''}
+                              onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleVariationChange(idx, '_subStock', e.target.value)}
+                              onWheel={e => e.currentTarget.blur()}
+                            />
+                            <span className="text-gray-700 text-sm">{selectedUnit.subunit_name}</span>
+                          </div>
+                        ) : (
+                          <input
+                            className={`w-full border rounded px-2 py-1 text-gray-900 placeholder-gray-500 ${
+                              validationErrors.variations?.[idx]?.opening_stock ? 'border-red-500' : ''
+                            }`}
+                            type="number"
+                            min="0"
+                            placeholder="Enter opening stock"
+                            value={v._stockInput ?? ''}
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleVariationChange(idx, '_stockInput', e.target.value)}
+                            onWheel={e => e.currentTarget.blur()}
+                          />
+                        )}
+                        <div className="text-xs text-gray-500 mt-1">
+                          Parsed: {(() => {
+                            if (isKg) {
+                              const parsed = parseFractionalInput(`${v._mainStock || 0} ${v._subStock || 0}`, selectedUnit.subunit_factor);
+                              return isNaN(parsed) ? <span className="text-red-600">Invalid</span> : parsed;
+                            } else {
+                              const parsed = parseFractionalInput((v._stockInput ?? '').toString());
+                              return isNaN(parsed) ? <span className="text-red-600">Invalid</span> : parsed;
+                            }
+                          })()} {selectedUnit.name}
+                        </div>
+                        {validationErrors.variations?.[idx]?.opening_stock && (
+                          <p className="text-red-600 text-xs mt-1">{validationErrors.variations[idx].opening_stock}</p>
+                        )}
+                      </div>
+                      <div className="col-span-2">
+                        <label className="block text-xs font-medium text-gray-700 mb-1">{t('inventory.minStock', 'Min Stock')}</label>
+                        {isKg ? (
+                          <div className="flex items-center gap-2">
+                            <input
+                              className={`w-16 border rounded px-2 py-1 text-gray-900 placeholder-gray-500 ${
+                                validationErrors.variations?.[idx]?.min_stock ? 'border-red-500' : ''
+                              }`}
+                              type="number"
+                              min="0"
+                              placeholder={selectedUnit.name}
+                              value={v._mainMinStock ?? ''}
+                              onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleVariationChange(idx, '_mainMinStock', e.target.value)}
+                              onWheel={e => e.currentTarget.blur()}
+                            />
+                            <span className="text-gray-700 text-sm">{selectedUnit.name}</span>
+                            <input
+                              className={`w-16 border rounded px-2 py-1 text-gray-900 placeholder-gray-500 ${
+                                validationErrors.variations?.[idx]?.min_stock ? 'border-red-500' : ''
+                              }`}
+                              type="number"
+                              min="0"
+                              placeholder={selectedUnit.subunit_name}
+                              value={v._subMinStock ?? ''}
+                              onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleVariationChange(idx, '_subMinStock', e.target.value)}
+                              onWheel={e => e.currentTarget.blur()}
+                            />
+                            <span className="text-gray-700 text-sm">{selectedUnit.subunit_name}</span>
+                          </div>
+                        ) : (
+                          <input
+                            className={`w-full border rounded px-2 py-1 text-gray-900 placeholder-gray-500 ${
+                              validationErrors.variations?.[idx]?.min_stock ? 'border-red-500' : ''
+                            }`}
+                            type="number"
+                            min="0"
+                            placeholder="Enter min stock"
+                            value={v._minStockInput ?? ''}
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleVariationChange(idx, '_minStockInput', e.target.value)}
+                            onWheel={e => e.currentTarget.blur()}
+                          />
+                        )}
+                        <div className="text-xs text-gray-500 mt-1">
+                          Parsed: {(() => {
+                            if (isKg) {
+                              const parsed = parseFractionalInput(`${v._mainMinStock || 0} ${v._subMinStock || 0}`, selectedUnit.subunit_factor);
+                              return isNaN(parsed) ? <span className="text-red-600">Invalid</span> : parsed;
+                            } else {
+                              const parsed = parseFractionalInput((v._minStockInput ?? '').toString());
+                              return isNaN(parsed) ? <span className="text-red-600">Invalid</span> : parsed;
+                            }
+                          })()} {selectedUnit.name}
+                        </div>
+                        {validationErrors.variations?.[idx]?.min_stock && (
+                          <p className="text-red-600 text-xs mt-1">{validationErrors.variations[idx].min_stock}</p>
+                        )}
+                      </div>
+                      <div className="col-span-2">
+                        <label className="block text-xs font-medium text-gray-700 mb-1">{t('inventory.location', 'Location')}</label>
+                        <input
+                          className={`w-full border rounded px-2 py-1 text-gray-900 placeholder-gray-500 ${
+                            validationErrors.variations?.[idx]?.location ? 'border-red-500' : ''
+                          }`}
+                          placeholder={t('inventory.location', 'Location')}
+                          value={v.location}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleVariationChange(idx, 'location', e.target.value)}
+                        />
+                        {validationErrors.variations?.[idx]?.location && (
+                          <p className="text-red-600 text-xs mt-1">{validationErrors.variations[idx].location}</p>
+                        )}
+                      </div>
+                      <div className="col-span-2 flex justify-end gap-2 mt-2">
+                        <button 
+                          type="button"
+                          onClick={() => {
+                            const errors = validateVariation(v, idx);
+                            if (Object.keys(errors).length === 0) {
+                              // Move the saved variation to savedVariations
+                              setSavedVariations(prev => [...prev, v]);
+                              // Remove the current variation (don't add a new empty one)
+                              setVariations((prev) => prev.filter((_, i) => i !== idx));
+                              // Set isAddingVariation to false so the form disappears
+                              setIsAddingVariation(false);
+                              toast.success('Variation saved successfully!');
+                            } else {
+                              setValidationErrors(prev => ({
+                                ...prev,
+                                variations: { ...prev.variations, [idx]: errors }
+                              }));
+                            }
+                          }} 
+                          className="bg-blue-600 text-white px-4 py-1 rounded-lg font-medium hover:bg-blue-700 text-sm"
+                        >
+                          Add Variation
+                        </button>
+                        <button 
+                          type="button"
+                          onClick={() => {
+                            setVariations(prev => prev.filter((_, i) => i !== prev.length - 1));
+                            setIsAddingVariation(false);
+                          }} 
+                          className="text-gray-500 hover:text-gray-700 px-4 py-1 rounded-lg text-sm"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+              
               {/* Render saved variations as cards */}
               {savedVariations.map((v, idx) => {
                 const unit = units.find(u => u.id === v.unit_id);
@@ -528,246 +838,7 @@ export default function ProductForm({ onClose, onSave, initialData }: ProductFor
                   </div>
                 );
               })}
-              {/* Only render the last variation as editable fields */}
-              {variations.length > 0 && (() => {
-                const v = variations[variations.length - 1];
-                const idx = variations.length - 1;
-                const unit = units.find(u => u.id === v.unit_id);
-                const selectedUnit = unit || { name: '', subunit_name: '', subunit_factor: 1 };
-                const isKg = selectedUnit.subunit_name && selectedUnit.subunit_factor;
-                const mainStock = v._mainStock ?? '';
-                const subStock = v._subStock ?? '';
-                const mainMinStock = v._mainMinStock ?? '';
-                const subMinStock = v._subMinStock ?? '';
-                // Only require fields if any field is non-empty
-                const anyFieldFilled = v.name || v.purchase_price || v.selling_price || v._stockInput || v._mainStock || v._subStock || v._minStockInput || v._mainMinStock || v._subMinStock || v.location;
-                return (
-                  <div key={idx} className="border rounded p-3 relative bg-gray-50">
-                    <div className="grid grid-cols-2 gap-3 items-center">
-                      <div>
-                        <label className="block text-xs font-medium text-gray-700 mb-1">{t('inventory.variationName', 'Name')}</label>
-                        <input
-                          className={`w-full border rounded px-2 py-1 text-gray-900 placeholder-gray-500 ${
-                            validationErrors.variations?.[idx]?.name ? 'border-red-500' : ''
-                          }`}
-                          placeholder={t('inventory.variationName', 'Name')}
-                          value={v.name}
-                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleVariationChange(idx, 'name', e.target.value)}
-                          required={!!anyFieldFilled}
-                        />
-                        {validationErrors.variations?.[idx]?.name && (
-                          <p className="text-red-600 text-xs mt-1">{validationErrors.variations[idx].name}</p>
-                        )}
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-700 mb-1">{t('inventory.unit', 'Unit')}</label>
-                        <select
-                          className={`w-full border rounded px-2 py-1 text-gray-900 ${
-                            validationErrors.variations?.[idx]?.unit_id ? 'border-red-500' : ''
-                          }`}
-                          value={v.unit_id}
-                          onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleVariationChange(idx, 'unit_id', Number(e.target.value))}
-                          required={!!anyFieldFilled}
-                        >
-                          {units.map((unit) => (
-                            <option key={unit.id} value={unit.id}>
-                              {unit.name}{unit.full_name ? ` (${unit.full_name})` : ''}
-                            </option>
-                          ))}
-                        </select>
-                        {validationErrors.variations?.[idx]?.unit_id && (
-                          <p className="text-red-600 text-xs mt-1">{validationErrors.variations[idx].unit_id}</p>
-                        )}
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-700 mb-1">
-                          {t('inventory.purchasePrice', 'Purchase Price')} / {unit?.name || ''}
-                        </label>
-                        <input
-                          className={`w-full border rounded px-2 py-1 text-gray-900 placeholder-gray-500 ${
-                            validationErrors.variations?.[idx]?.purchase_price ? 'border-red-500' : ''
-                          }`}
-                          placeholder={t('inventory.purchasePrice', 'Buy') + (unit?.name ? ` / ${unit.name}` : '')}
-                          type="number"
-                          value={v.purchase_price}
-                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleVariationChange(idx, 'purchase_price', e.target.value)}
-                          required={!!anyFieldFilled}
-                        />
-                        {validationErrors.variations?.[idx]?.purchase_price && (
-                          <p className="text-red-600 text-xs mt-1">{validationErrors.variations[idx].purchase_price}</p>
-                        )}
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-700 mb-1">
-                          {t('inventory.sellingPrice', 'Selling Price')} / {unit?.name || ''}
-                        </label>
-                        <input
-                          className={`w-full border rounded px-2 py-1 text-gray-900 placeholder-gray-500 ${
-                            validationErrors.variations?.[idx]?.selling_price ? 'border-red-500' : ''
-                          }`}
-                          placeholder={t('inventory.sellingPrice', 'Sell') + (unit?.name ? ` / ${unit.name}` : '')}
-                          type="number"
-                          value={v.selling_price}
-                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleVariationChange(idx, 'selling_price', e.target.value)}
-                          required={!!anyFieldFilled}
-                        />
-                        {validationErrors.variations?.[idx]?.selling_price && (
-                          <p className="text-red-600 text-xs mt-1">{validationErrors.variations[idx].selling_price}</p>
-                        )}
-                      </div>
-                      {/* Current Stock */}
-                      <div className={isKg ? 'col-span-2' : ''}>
-                        <label className="block text-xs font-medium text-gray-700 mb-1">{t('inventory.currentStock', 'Current Stock')}</label>
-                        {isKg ? (
-                          <div className="flex items-center gap-2">
-                            <input
-                              className={`w-16 border rounded px-2 py-1 text-gray-900 placeholder-gray-500 ${
-                                validationErrors.variations?.[idx]?.opening_stock ? 'border-red-500' : ''
-                              }`}
-                              type="number"
-                              min="0"
-                              placeholder={selectedUnit.name}
-                              value={mainStock}
-                              onChange={e => handleVariationChange(idx, '_mainStock', e.target.value)}
-                              required={!!anyFieldFilled}
-                              onWheel={e => e.currentTarget.blur()}
-                            />
-                            <span className="text-gray-700 text-sm">{selectedUnit.name}</span>
-                            <input
-                              className={`w-16 border rounded px-2 py-1 text-gray-900 placeholder-gray-500 ${
-                                validationErrors.variations?.[idx]?.opening_stock ? 'border-red-500' : ''
-                              }`}
-                              type="number"
-                              min="0"
-                              placeholder={selectedUnit.subunit_name}
-                              value={subStock}
-                              onChange={e => handleVariationChange(idx, '_subStock', e.target.value)}
-                              required={!!anyFieldFilled}
-                              onWheel={e => e.currentTarget.blur()}
-                            />
-                            <span className="text-gray-700 text-sm">{selectedUnit.subunit_name}</span>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-2">
-                            <input
-                              className={`w-full border rounded px-2 py-1 text-gray-900 placeholder-gray-500 ${
-                                validationErrors.variations?.[idx]?.opening_stock ? 'border-red-500' : ''
-                              }`}
-                              placeholder={t('inventory.currentStock', 'e.g. 5 pcs')}
-                              value={v._stockInput ?? ''}
-                              pattern="[0-9kglmpcs.\s]*"
-                              onChange={e => handleVariationChange(idx, '_stockInput', e.target.value.replace(/[^0-9kglmpcs.\s]/gi, ''))}
-                              required={!!anyFieldFilled}
-                              onWheel={e => e.currentTarget.blur()}
-                            />
-                            <span className="text-gray-700 text-sm">{selectedUnit?.name || ''}</span>
-                          </div>
-                        )}
-                        {validationErrors.variations?.[idx]?.opening_stock && (
-                          <p className="text-red-600 text-xs mt-1">{validationErrors.variations[idx].opening_stock}</p>
-                        )}
-                        <div className="text-xs text-gray-500 mt-1">
-                          {t('inventory.parsedStock', 'Parsed:')} {isNaN(parseFractionalInput((v._stockInput ?? '').toString())) ? <span className="text-red-600">Invalid</span> : parseFractionalInput((v._stockInput ?? '').toString())} {selectedUnit?.name || ''}
-                        </div>
-                      </div>
-                      {/* Minimum Stock */}
-                      <div className={isKg ? 'col-span-2' : ''}>
-                        <label className="block text-xs font-medium text-gray-700 mb-1">{t('inventory.minStock', 'Minimum Stock')}</label>
-                        {isKg ? (
-                          <div className="flex items-center gap-2">
-                            <input
-                              className={`w-16 border rounded px-2 py-1 text-gray-900 placeholder-gray-500 ${
-                                validationErrors.variations?.[idx]?.min_stock ? 'border-red-500' : ''
-                              }`}
-                              type="number"
-                              min="0"
-                              placeholder={selectedUnit.name}
-                              value={mainMinStock}
-                              onChange={e => handleVariationChange(idx, '_mainMinStock', e.target.value)}
-                              required={!!anyFieldFilled}
-                              onWheel={e => e.currentTarget.blur()}
-                            />
-                            <span className="text-gray-700 text-sm">{selectedUnit.name}</span>
-                            <input
-                              className={`w-16 border rounded px-2 py-1 text-gray-900 placeholder-gray-500 ${
-                                validationErrors.variations?.[idx]?.min_stock ? 'border-red-500' : ''
-                              }`}
-                              type="number"
-                              min="0"
-                              placeholder={selectedUnit.subunit_name}
-                              value={subMinStock}
-                              onChange={e => handleVariationChange(idx, '_subMinStock', e.target.value)}
-                              required={!!anyFieldFilled}
-                              onWheel={e => e.currentTarget.blur()}
-                            />
-                            <span className="text-gray-700 text-sm">{selectedUnit.subunit_name}</span>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-2">
-                            <input
-                              className={`w-full border rounded px-2 py-1 text-gray-900 placeholder-gray-500 ${
-                                validationErrors.variations?.[idx]?.min_stock ? 'border-red-500' : ''
-                              }`}
-                              placeholder={t('inventory.minStock', 'e.g. 2 pcs')}
-                              value={v._minStockInput ?? ''}
-                              pattern="[0-9kglmpcs.\s]*"
-                              onChange={e => handleVariationChange(idx, '_minStockInput', e.target.value.replace(/[^0-9kglmpcs.\s]/gi, ''))}
-                              required={!!anyFieldFilled}
-                              onWheel={e => e.currentTarget.blur()}
-                            />
-                            <span className="text-gray-700 text-sm">{selectedUnit?.name || ''}</span>
-                          </div>
-                        )}
-                        {validationErrors.variations?.[idx]?.min_stock && (
-                          <p className="text-red-600 text-xs mt-1">{validationErrors.variations[idx].min_stock}</p>
-                        )}
-                        <div className="text-xs text-gray-500 mt-1">
-                          {t('inventory.parsedStock', 'Parsed:')} {isNaN(parseFractionalInput((v._minStockInput ?? '').toString())) ? <span className="text-red-600">Invalid</span> : parseFractionalInput((v._minStockInput ?? '').toString())} {selectedUnit?.name || ''}
-                        </div>
-                      </div>
-                      <div className="col-span-2">
-                        <label className="block text-xs font-medium text-gray-700 mb-1">{t('inventory.location', 'Location')}</label>
-                        <input
-                          className={`w-full border rounded px-2 py-1 text-gray-900 placeholder-gray-500 ${
-                            validationErrors.variations?.[idx]?.location ? 'border-red-500' : ''
-                          }`}
-                          placeholder={t('inventory.location', 'Location')}
-                          value={v.location}
-                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleVariationChange(idx, 'location', e.target.value)}
-                          required={!!anyFieldFilled}
-                        />
-                        {validationErrors.variations?.[idx]?.location && (
-                          <p className="text-red-600 text-xs mt-1">{validationErrors.variations[idx].location}</p>
-                        )}
-                      </div>
-                    </div>
-                    <div className="col-span-2 text-right text-sm text-gray-700 mt-2">
-                      {t('inventory.totalPurchaseValue', 'Total Purchase Value')}: {formatCurrency(v.purchase_price * parseFractionalInput((v._stockInput ?? '').toString(), unit?.subunit_factor))}
-                    </div>
-                    <div className="col-span-2 text-right text-sm text-gray-700 mt-1">
-                      {t('inventory.estimatedRevenue', 'Estimated Revenue')}: {formatCurrency(v.selling_price * parseFractionalInput((v._stockInput ?? '').toString(), unit?.subunit_factor))}
-                    </div>
-                    <div className="col-span-2 text-right text-sm text-gray-700 mt-1">
-                      {t('inventory.estimatedProfit', 'Estimated Profit')}: {formatCurrency((v.selling_price - v.purchase_price) * parseFractionalInput((v._stockInput ?? '').toString(), unit?.subunit_factor))}
-                    </div>
-                    <div className="col-span-2 flex justify-end mt-2">
-                      <button
-                        type="button"
-                        className="bg-blue-600 text-white px-4 py-1 rounded-lg font-medium hover:bg-blue-700 text-sm mr-2"
-                        onClick={() => handleSaveVariant(v, idx)}
-                      >
-                        Add
-                      </button>
-                      <button type="button" onClick={() => removeVariation(idx)} className="text-red-500 hover:text-red-700">
-                        <TrashIcon className="w-5 h-5" />
-                      </button>
-                    </div>
-                    {error && (
-                      <div className="text-red-600 text-xs mt-2">{error}</div>
-                    )}
-                  </div>
-                );
-              })()}
+              {/* Only render the last variation as editable fields when not adding a new variation */}
             </div>
           </div>
           <div className="w-full flex justify-center mt-8 mb-4">

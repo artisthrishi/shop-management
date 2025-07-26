@@ -46,6 +46,9 @@ export interface Unit {
   id: number;
   name: string;
   fractional: boolean;
+  full_name?: string;
+  subunit_name?: string;
+  subunit_factor?: number;
 }
 
 export interface Product {
@@ -53,12 +56,9 @@ export interface Product {
   name: string;
   category: string;
   brand: string;
-  unit_id: number;
-  min_stock: number;
-  location: string;
   created_at: string;
   created_by: string | null;
-  product_variations?: ProductVariation[]; // <-- add this line
+  product_variations?: ProductVariation[];
 }
 
 export interface ProductVariation {
@@ -122,17 +122,18 @@ export interface ProductFormData {
   name: string;
   category: string;
   brand: string;
-  unit_id: number;
-  min_stock: number;
-  location: string;
   variations: ProductVariationFormData[];
+  id?: number;
 }
 
 export interface ProductVariationFormData {
   name: string;
+  unit_id: number;
   purchase_price: number;
   selling_price: number;
   opening_stock: number;
+  min_stock: number;
+  location: string;
 }
 
 // Report types

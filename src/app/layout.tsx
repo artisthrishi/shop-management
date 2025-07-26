@@ -1,13 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-// import "../lib/i18n"; // Removed to fix SSR error
-import Navbar from '../components/Navbar';
-import ClientProviders from '../components/ClientProviders';
-import { ModalContext } from '../components/ClientProviders';
-import LayoutClient from '../components/LayoutClient';
-import AppShell from './AppShell';
 import { Toaster } from 'react-hot-toast';
+import NavigationBar from '@/components/NavigationBar';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -23,7 +18,6 @@ export const metadata: Metadata = {
   title: "Shop Manager MVP",
   description: "A progressive web app for managing shop inventory, sales, and reports",
   manifest: "/manifest.json",
-  // themeColor and viewport moved to viewport export
 };
 
 export const viewport = {
@@ -37,9 +31,12 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <AppShell>
-          {children}
-        </AppShell>
+        <div className="flex flex-col h-screen bg-gray-50">
+          <main className="flex-1 overflow-y-auto pb-20">
+            {children}
+          </main>
+          <NavigationBar />
+        </div>
         <Toaster position="top-center" />
       </body>
     </html>

@@ -7,7 +7,7 @@ import React, { createContext, useState } from 'react';
 
 export const ModalContext = createContext({
   modalOpen: false,
-  setModalOpen: (open: boolean) => {},
+  setModalOpen: (_open: boolean) => {},
 });
 
 export function ModalProvider({ children }: { children: React.ReactNode }) {

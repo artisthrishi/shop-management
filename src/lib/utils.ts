@@ -87,55 +87,13 @@ export function calculateCartProfit(cartItems: CartItem[]): number {
 }
 
 // Fractional unit parsing
-export function parseFractionalInput(input: string): number {
-  // Handle inputs like "1 kg 250g" or "1.25 kg"
-  const cleanInput = input.toLowerCase().trim();
-  
-  // Check for mixed format like "1 kg 250g"
-  const mixedMatch = cleanInput.match(/^(\d+(?:\.\d+)?)\s*(kg|l|g|ml)\s*(\d+)\s*(g|ml)$/);
-  if (mixedMatch) {
-    const [, main, mainUnit, sub, subUnit] = mixedMatch;
-    const mainValue = parseFloat(main);
-    const subValue = parseFloat(sub);
-    
-    if (mainUnit === 'kg' && subUnit === 'g') {
-      return mainValue + (subValue / 1000);
-    }
-    if (mainUnit === 'l' && subUnit === 'ml') {
-      return mainValue + (subValue / 1000);
-    }
+export function parseFractionalInput(input: string, subunitFactor?: number): number {
+  if (subunitFactor) {
+    const [main, sub] = input.split(' ').map(Number);
+    return (Number(main) || 0) + (Number(sub) || 0) / subunitFactor;
   }
-  
-  // Handle decimal format
-  const decimalMatch = cleanInput.match(/^(\d+(?:\.\d+)?)\s*(kg|l|g|ml|pcs|m|cm)$/);
-  if (decimalMatch) {
-    return parseFloat(decimalMatch[1]);
-  }
-  
-  // Fallback to simple number
-  return parseFloat(cleanInput) || 0;
-}
-
-export function formatFractionalOutput(value: number, unit: string): string {
-  if (unit === 'kg' && value >= 1) {
-    const kg = Math.floor(value);
-    const g = Math.round((value - kg) * 1000);
-    if (g > 0) {
-      return `${kg} kg ${g}g`;
-    }
-    return `${kg} kg`;
-  }
-  
-  if (unit === 'l' && value >= 1) {
-    const l = Math.floor(value);
-    const ml = Math.round((value - l) * 1000);
-    if (ml > 0) {
-      return `${l} l ${ml}ml`;
-    }
-    return `${l} l`;
-  }
-  
-  return `${value} ${unit}`;
+  // Only parse as a simple number if no subunitFactor
+  return parseFloat(input) || 0;
 }
 
 // Validation

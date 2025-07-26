@@ -12,7 +12,7 @@ import { HomeIcon, ArchiveBoxIcon, ChartBarIcon, Cog6ToothIcon } from '@heroicon
 const navItems = [
   {
     labelKey: 'nav.home',
-    href: '/home',
+    href: '/', // Changed from '/home' to '/'
     icon: HomeIcon,
   },
   {

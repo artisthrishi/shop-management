@@ -9,6 +9,7 @@ const withPWA = require('next-pwa')({
 
 const nextConfig: NextConfig = withPWA({
   reactStrictMode: true,
+  // Removed the redirects function as it is no longer needed
 });
 
 export default nextConfig;

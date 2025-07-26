@@ -48,7 +48,7 @@ import type {
 export async function getUnits(): Promise<Unit[]> {
   const { data, error } = await supabase
     .from('units')
-    .select('*')
+    .select('id, name, fractional, full_name, subunit_name, subunit_factor')
     .order('name');
   
   if (error) throw error;
@@ -80,7 +80,7 @@ export async function getProductWithVariations(productId: number) {
   return data;
 }
 
-export async function createProduct(product: Omit<Product, 'id' | 'created_at'>) {
+export async function createProduct(product: { name: string; brand: string; category: string; created_by: string | null }) {
   const { data, error } = await supabase
     .from('products')
     .insert(product)

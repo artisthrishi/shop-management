@@ -2,7 +2,7 @@
   "name": "Shop Manager MVP",
   "short_name": "ShopManager",
   "description": "A progressive web app for managing shop inventory, sales, and reports.",
-  "start_url": "/home",
+  "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#3B82F6",

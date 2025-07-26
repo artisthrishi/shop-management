@@ -13,13 +13,12 @@ export default function ProductDetailsPage() {
   const router = useRouter();
   const productId = Number(params?.id);
   const [product, setProduct] = useState<Product | null>(null);
-  const [variations, setVariations] = useState<any[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editIdx, setEditIdx] = useState<number | null>(null);
-  const [editVariation, setEditVariation] = useState<any | null>(null);
-  const [pendingVariations, setPendingVariations] = useState<any[]>([]);
+  const [editVariation, setEditVariation] = useState<Partial<ProductVariation> | null>(null);
+  const [pendingVariations, setPendingVariations] = useState<Partial<ProductVariation>[]>([]);
   const [deleteIdx, setDeleteIdx] = useState<number | null>(null);
   const [saveLoading, setSaveLoading] = useState(false);
 
@@ -32,13 +31,12 @@ export default function ProductDetailsPage() {
     ])
       .then(([prod, units]) => {
         setProduct(prod);
-        setVariations(prod.product_variations || []);
         setUnits(units);
         setPendingVariations(prod.product_variations || []);
         setLoading(false);
       })
       .catch((e) => {
-        setError(e.message || 'Error loading product');
+        setError(e instanceof Error ? e.message : 'Error loading product');
         setLoading(false);
       });
   }, [productId]);
@@ -48,18 +46,18 @@ export default function ProductDetailsPage() {
     setEditVariation({ ...pendingVariations[idx] });
   };
 
-  const handleEditChange = (field: string, value: any) => {
-    setEditVariation((prev: any) => ({ ...prev, [field]: value }));
+  const handleEditChange = (field: string, value: unknown) => {
+    setEditVariation((prev) => prev ? { ...prev, [field]: value } : prev);
   };
 
   const handleEditSave = async (idx: number) => {
     setSaveLoading(true);
     const v = editVariation;
     try {
-      if (v.id) {
-        await updateProductVariation(v.id, v);
-      } else {
-        await createProductVariation({ ...v, product_id: productId });
+      if (v && v.id) {
+        await updateProductVariation(v.id, v as ProductVariation);
+      } else if (v) {
+        await createProductVariation({ ...v, product_id: productId } as Omit<ProductVariation, 'id'>);
       }
       setPendingVariations((prev) => prev.map((pv, i) => (i === idx ? { ...editVariation } : pv)));
       setEditIdx(null);
@@ -67,11 +65,10 @@ export default function ProductDetailsPage() {
       // Refresh product data
       const prod = await getProductWithVariations(productId);
       setProduct(prod);
-      setVariations(prod.product_variations || []);
       setPendingVariations(prod.product_variations || []);
       toast.success('Variation saved successfully!');
-    } catch (e: any) {
-      setError(e.message || 'Error saving variation');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error saving variation');
     }
     setSaveLoading(false);
   };
@@ -95,45 +92,51 @@ export default function ProductDetailsPage() {
         // Refresh product data
         const prod = await getProductWithVariations(productId);
         setProduct(prod);
-        setVariations(prod.product_variations || []);
         setPendingVariations(prod.product_variations || []);
         toast.success('Variation deleted successfully!');
       }
-    } catch (e: any) {
-      setError(e.message || 'Error deleting variation');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error deleting variation');
     }
     setSaveLoading(false);
   };
 
   const handleAddVariation = () => {
-    setPendingVariations((prev) => [
-      ...prev,
-      { name: '', unit_id: units[0]?.id || 1, purchase_price: 0, selling_price: 0, current_stock: 0, min_stock: 0, location: '' },
-    ]);
+    const newVariation: Partial<ProductVariation> = {
+      name: '',
+      unit_id: units[0]?.id || 1,
+      purchase_price: 0,
+      selling_price: 0,
+      opening_stock: 0,
+      current_stock: 0,
+      min_stock: 0,
+      location: '',
+      product_id: productId,
+      created_by: null,
+    };
+    setPendingVariations((prev) => [...prev, newVariation]);
     setEditIdx(pendingVariations.length);
-    setEditVariation({ name: '', unit_id: units[0]?.id || 1, purchase_price: 0, selling_price: 0, current_stock: 0, min_stock: 0, location: '' });
+    setEditVariation(newVariation);
   };
 
   const handleSaveAll = async () => {
     setSaveLoading(true);
     try {
-      // Update all variations in pendingVariations
       for (const v of pendingVariations) {
-        if (v.id) {
-          await updateProductVariation(v.id, v);
-        } else {
-          await createProductVariation({ ...v, product_id: productId });
+        if (v && v.id) {
+          await updateProductVariation(v.id, v as ProductVariation);
+        } else if (v) {
+          await createProductVariation({ ...v, product_id: productId } as Omit<ProductVariation, 'id'>);
         }
       }
       // Refresh product data
       const prod = await getProductWithVariations(productId);
       setProduct(prod);
-      setVariations(prod.product_variations || []);
       setPendingVariations(prod.product_variations || []);
       router.push('/inventory');
       toast.success('All variations saved successfully!');
-    } catch (e: any) {
-      setError(e.message || 'Error saving changes');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error saving changes');
     }
     setSaveLoading(false);
   };
@@ -156,7 +159,7 @@ export default function ProductDetailsPage() {
         <div className="font-semibold text-lg text-gray-900">{product.name}</div>
         <div className="text-sm text-gray-500">Brand: {product.brand}</div>
         <div className="text-sm text-gray-500">Category: {product.category}</div>
-        <div className="text-sm text-gray-500">Location: {product.location}</div>
+        {/* <div className="text-sm text-gray-500">Location: {product.location}</div> */}
       </div>
       <div className="bg-white rounded-lg shadow p-4">
         <div className="flex items-center justify-between mb-2">
@@ -172,11 +175,11 @@ export default function ProductDetailsPage() {
               <div className="grid grid-cols-2 gap-3 items-center">
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Name</label>
-                  <input className="w-full border rounded px-2 py-1 text-gray-900 placeholder-gray-500" value={editVariation.name} onChange={e => handleEditChange('name', e.target.value)} />
+                  <input className="w-full border rounded px-2 py-1 text-gray-900 placeholder-gray-500" value={editVariation?.name ?? ''} onChange={e => handleEditChange('name', e.target.value)} />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Unit</label>
-                  <select className="w-full border rounded px-2 py-1 text-gray-900" value={editVariation.unit_id} onChange={e => handleEditChange('unit_id', Number(e.target.value))}>
+                  <select className="w-full border rounded px-2 py-1 text-gray-900" value={editVariation?.unit_id ?? 0} onChange={e => handleEditChange('unit_id', Number(e.target.value))}>
                     {units.map((unit) => (
                       <option key={unit.id} value={unit.id}>{unit.name}</option>
                     ))}
@@ -184,23 +187,23 @@ export default function ProductDetailsPage() {
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Purchase Price</label>
-                  <input className="w-full border rounded px-2 py-1 text-gray-900 placeholder-gray-500" type="number" value={editVariation.purchase_price} onChange={e => handleEditChange('purchase_price', Number(e.target.value))} />
+                  <input className="w-full border rounded px-2 py-1 text-gray-900 placeholder-gray-500" type="number" value={editVariation?.purchase_price ?? ''} onChange={e => handleEditChange('purchase_price', Number(e.target.value))} />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Selling Price</label>
-                  <input className="w-full border rounded px-2 py-1 text-gray-900 placeholder-gray-500" type="number" value={editVariation.selling_price} onChange={e => handleEditChange('selling_price', Number(e.target.value))} />
+                  <input className="w-full border rounded px-2 py-1 text-gray-900 placeholder-gray-500" type="number" value={editVariation?.selling_price ?? ''} onChange={e => handleEditChange('selling_price', Number(e.target.value))} />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Current Stock</label>
-                  <input className="w-full border rounded px-2 py-1 text-gray-900 placeholder-gray-500" type="number" value={editVariation.current_stock} onChange={e => handleEditChange('current_stock', Number(e.target.value))} />
+                  <input className="w-full border rounded px-2 py-1 text-gray-900 placeholder-gray-500" type="number" value={editVariation?.current_stock ?? ''} onChange={e => handleEditChange('current_stock', Number(e.target.value))} />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Min Stock</label>
-                  <input className="w-full border rounded px-2 py-1 text-gray-900 placeholder-gray-500" type="number" value={editVariation.min_stock} onChange={e => handleEditChange('min_stock', Number(e.target.value))} />
+                  <input className="w-full border rounded px-2 py-1 text-gray-900 placeholder-gray-500" type="number" value={editVariation?.min_stock ?? ''} onChange={e => handleEditChange('min_stock', Number(e.target.value))} />
                 </div>
                 <div className="col-span-2">
                   <label className="block text-xs font-medium text-gray-700 mb-1">Location</label>
-                  <input className="w-full border rounded px-2 py-1 text-gray-900 placeholder-gray-500" value={editVariation.location} onChange={e => handleEditChange('location', e.target.value)} />
+                  <input className="w-full border rounded px-2 py-1 text-gray-900 placeholder-gray-500" value={editVariation?.location ?? ''} onChange={e => handleEditChange('location', e.target.value)} />
                 </div>
                 <div className="col-span-2 flex justify-end gap-2 mt-2">
                   <button onClick={() => handleEditSave(idx)} className="bg-blue-600 text-white px-4 py-1 rounded-lg font-medium hover:bg-blue-700 text-sm">Add</button>
@@ -216,9 +219,9 @@ export default function ProductDetailsPage() {
                     <button onClick={() => handleDelete(idx)} className="p-2 rounded bg-red-100 hover:bg-red-200 text-red-700" title="Delete"><TrashIcon className="w-4 h-4" /></button>
                   </div>
                 </div>
-                <div className="text-xs text-gray-700">Unit: {units.find(u => u.id === v.unit_id)?.name || ''}</div>
-                <div className="text-xs text-gray-700">Purchase Price: {formatCurrency(v.purchase_price)}</div>
-                <div className="text-xs text-gray-700">Selling Price: {formatCurrency(v.selling_price)}</div>
+                <div className="text-xs text-gray-700">Unit: {units.find(u => u.id === (v.unit_id ?? 0))?.name || ''}</div>
+                <div className="text-xs text-gray-700">Purchase Price: {formatCurrency(v.purchase_price ?? 0)}</div>
+                <div className="text-xs text-gray-700">Selling Price: {formatCurrency(v.selling_price ?? 0)}</div>
                 <div className="text-xs text-gray-700">Current Stock: {v.current_stock}</div>
                 <div className="text-xs text-gray-700">Min Stock: {v.min_stock}</div>
                 <div className="text-xs text-gray-700">Location: {v.location}</div>

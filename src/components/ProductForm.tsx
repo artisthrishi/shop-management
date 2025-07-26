@@ -7,16 +7,33 @@ import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { XMarkIcon, PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { getUnits, createProduct, createProductVariation } from '@/lib/database';
-import type { Unit, Product, ProductVariation } from '@/types';
+import type { ProductVariationFormData, Unit } from '@/types';
 import { parseFractionalInput, formatCurrency } from '@/lib/utils';
 import toast from 'react-hot-toast';
 
-interface Variation {
+// Remove local ProductFormData and Variation interfaces, use imported ones
+// Define ProductFormData type for form submission
+// interface ProductFormData {
+//   name: string;
+//   brand: string;
+//   category: string;
+//   variations: Variation[];
+//   id?: number;
+// }
+
+interface ProductFormProps {
+  onClose: () => void;
+  onSave: (product: { name: string; brand: string; category: string; created_by: string | null }) => void;
+  initialData?: { name?: string; brand?: string; category?: string; created_by?: string | null; variations?: ProductVariationFormData[] };
+}
+
+// Local UI type for form state
+interface VariationUI {
   name: string;
   unit_id: number;
   purchase_price: number;
   selling_price: number;
-  current_stock: number;
+  opening_stock: number;
   min_stock: number;
   location: string;
   _stockInput?: string;
@@ -27,29 +44,41 @@ interface Variation {
   _subMinStock?: string;
 }
 
-interface ProductFormProps {
-  onClose: () => void;
-  onSave: (product: any) => void;
-  initialData?: any;
+// Add validation state interfaces
+interface ValidationErrors {
+  product?: {
+    name?: string;
+  };
+  variations?: {
+    [index: number]: {
+      name?: string;
+      unit_id?: string;
+      purchase_price?: string;
+      selling_price?: string;
+      opening_stock?: string;
+      min_stock?: string;
+      location?: string;
+    };
+  };
 }
 
 export default function ProductForm({ onClose, onSave, initialData }: ProductFormProps) {
   const { t } = useTranslation();
   // Map initialData.variations or product_variations to Variation[] for editing
-  const mapInitialVariations = (data: any) => {
-    if (!data) return [
-      { name: '', unit_id: 1, purchase_price: 0, selling_price: 0, current_stock: 0, min_stock: 0, location: '', _stockInput: '', _minStockInput: '' },
+  const mapInitialVariations = (data: { name?: string; brand?: string; category?: string; created_by?: string | null; variations?: ProductVariationFormData[] } | undefined): VariationUI[] => {
+    if (!data || !data.variations) return [
+      { name: '', unit_id: 1, purchase_price: 0, selling_price: 0, opening_stock: 0, min_stock: 0, location: '' },
     ];
-    const variations = data.variations || data.product_variations || [];
-    return variations.map((v: any) => ({
+    const variations = data.variations;
+    return variations.map((v: ProductVariationFormData) => ({
       name: v.name || '',
       unit_id: v.unit_id || 1,
       purchase_price: v.purchase_price || 0,
       selling_price: v.selling_price || 0,
-      current_stock: v.current_stock ?? v.opening_stock ?? 0,
+      opening_stock: v.opening_stock || 0,
       min_stock: v.min_stock || 0,
       location: v.location || '',
-      _stockInput: v.current_stock?.toString() ?? v.opening_stock?.toString() ?? '',
+      _stockInput: v.opening_stock?.toString() ?? '',
       _minStockInput: v.min_stock?.toString() ?? '',
     }));
   };
@@ -57,13 +86,13 @@ export default function ProductForm({ onClose, onSave, initialData }: ProductFor
   const [name, setName] = useState(initialData?.name || '');
   const [brand, setBrand] = useState(initialData?.brand || '');
   const [category, setCategory] = useState(initialData?.category || '');
-  const [variations, setVariations] = useState<Variation[]>(mapInitialVariations(initialData));
+  // Use ProductVariationFormData for all variation state
+  const [variations, setVariations] = useState<VariationUI[]>(mapInitialVariations(initialData));
   const [units, setUnits] = useState<Unit[]>([]);
-  const [productId, setProductId] = useState<number | null>(initialData?.id || null);
-  const [loadingIdx, setLoadingIdx] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [validationErrors, setValidationErrors] = useState<ValidationErrors>({});
   // Add a new state to track saved variations
-  const [savedVariations, setSavedVariations] = useState<Variation[]>([]);
+  const [savedVariations, setSavedVariations] = useState<VariationUI[]>([]);
   const [confirmDeleteIdx, setConfirmDeleteIdx] = useState<number | null>(null);
   const [confirmClose, setConfirmClose] = useState(false);
 
@@ -80,11 +109,10 @@ export default function ProductForm({ onClose, onSave, initialData }: ProductFor
       setBrand(initialData.brand || '');
       setCategory(initialData.category || '');
       setVariations(mapInitialVariations(initialData));
-      setProductId(initialData.id || null);
     }
   }, [initialData]);
 
-  const handleVariationChange = (idx: number, field: keyof Variation, value: string | number) => {
+  const handleVariationChange = (idx: number, field: keyof VariationUI, value: string | number) => {
     setVariations((prev) =>
       prev.map((v, i) =>
         i === idx ? { ...v, [field]: field === 'name' || field === 'location' ? value : Number(value) } : v
@@ -95,7 +123,7 @@ export default function ProductForm({ onClose, onSave, initialData }: ProductFor
   const addVariation = () => {
     setVariations((prev) => [
       ...prev,
-      { name: '', unit_id: units[0]?.id || 1, purchase_price: 0, selling_price: 0, current_stock: 0, min_stock: 0, location: '', _stockInput: '', _minStockInput: '' },
+      { name: '', unit_id: units[0]?.id || 1, purchase_price: 0, selling_price: 0, opening_stock: 0, min_stock: 0, location: '' },
     ]);
   };
 
@@ -103,55 +131,206 @@ export default function ProductForm({ onClose, onSave, initialData }: ProductFor
     setVariations((prev) => prev.filter((_, i) => i !== idx));
   };
 
-  // Update handleSaveVariant to only update local state
-  const handleSaveVariant = (v: Variation, idx: number) => {
+  // Validation functions
+  const validateProductName = (name: string): string | undefined => {
+    if (!name.trim()) {
+      return 'Product name is required';
+    }
+    if (name.trim().length < 2) {
+      return 'Product name must be at least 2 characters';
+    }
+    return undefined;
+  };
+
+  const validateVariation = (variation: VariationUI, index: number) => {
+    const errors: {
+      name?: string;
+      unit_id?: string;
+      purchase_price?: string;
+      selling_price?: string;
+      opening_stock?: string;
+      min_stock?: string;
+      location?: string;
+    } = {};
+
+    // Validate variation name
+    if (!variation.name.trim()) {
+      errors.name = 'Variation name is required';
+    } else if (variation.name.trim().length < 2) {
+      errors.name = 'Variation name must be at least 2 characters';
+    }
+
+    // Validate unit
+    if (!variation.unit_id || variation.unit_id <= 0) {
+      errors.unit_id = 'Please select a unit';
+    }
+
+    // Validate purchase price
+    if (variation.purchase_price <= 0) {
+      errors.purchase_price = 'Purchase price must be greater than 0';
+    }
+
+    // Validate selling price
+    if (variation.selling_price <= 0) {
+      errors.selling_price = 'Selling price must be greater than 0';
+    }
+
+    // Validate opening stock
+    const selectedUnit = units.find(u => u.id === variation.unit_id);
+    if (selectedUnit?.subunit_name && selectedUnit?.subunit_factor) {
+      // For units with subunits, check if at least one field has a value
+      const mainStock = parseFloat(variation._mainStock ?? '0');
+      const subStock = parseFloat(variation._subStock ?? '0');
+      if (mainStock <= 0 && subStock <= 0) {
+        errors.opening_stock = 'Opening stock is required';
+      }
+    } else {
+      // For units without subunits
+      const stockValue = parseFloat(variation._stockInput ?? '0');
+      if (stockValue <= 0) {
+        errors.opening_stock = 'Opening stock is required';
+      }
+    }
+
+    // Validate min stock
+    if (selectedUnit?.subunit_name && selectedUnit?.subunit_factor) {
+      const mainMinStock = parseFloat(variation._mainMinStock ?? '0');
+      const subMinStock = parseFloat(variation._subMinStock ?? '0');
+      if (mainMinStock <= 0 && subMinStock <= 0) {
+        errors.min_stock = 'Minimum stock is required';
+      }
+    } else {
+      const minStockValue = parseFloat(variation._minStockInput ?? '0');
+      if (minStockValue <= 0) {
+        errors.min_stock = 'Minimum stock is required';
+      }
+    }
+
+    // Validate location
+    if (!variation.location.trim()) {
+      errors.location = 'Location is required';
+    }
+
+    return errors;
+  };
+
+  const validateAllVariations = (): boolean => {
+    const newValidationErrors: ValidationErrors = {
+      product: {},
+      variations: {}
+    };
+
+    // Validate product name
+    const productNameError = validateProductName(name);
+    if (productNameError) {
+      newValidationErrors.product!.name = productNameError;
+    }
+
+    // Validate all variations
+    let hasVariationErrors = false;
+    variations.forEach((variation, index) => {
+      const variationErrors = validateVariation(variation, index);
+      if (Object.keys(variationErrors).length > 0) {
+        newValidationErrors.variations![index] = variationErrors;
+        hasVariationErrors = true;
+      }
+    });
+
+    setValidationErrors(newValidationErrors);
+
+    // Check if there are any errors
+    const hasProductErrors = newValidationErrors.product && Object.keys(newValidationErrors.product).length > 0;
+    return !hasProductErrors && !hasVariationErrors;
+  };
+
+  // Update handleSaveVariant with validation
+  const handleSaveVariant = (v: VariationUI, idx: number) => {
+    // Validate the variation before saving
+    const variationErrors = validateVariation(v, idx);
+    
+    if (Object.keys(variationErrors).length > 0) {
+      setValidationErrors(prev => ({
+        ...prev,
+        variations: {
+          ...prev.variations,
+          [idx]: variationErrors
+        }
+      }));
+      toast.error('Please fix all errors before saving this variation');
+      return;
+    }
+
+    // Clear validation errors for this variation
+    setValidationErrors(prev => {
+      const newVariations = { ...prev.variations };
+      delete newVariations[idx];
+      return {
+        ...prev,
+        variations: newVariations
+      };
+    });
+
     // Move the saved variation to savedVariations
     setSavedVariations(prev => [...prev, v]);
     // Remove the saved variation from variations and add a new empty one
     setVariations((prev) => [
       ...prev.slice(0, idx),
       ...prev.slice(idx + 1),
-      { name: '', unit_id: units[0]?.id || 1, purchase_price: 0, selling_price: 0, current_stock: 0, min_stock: 0, location: '', _stockInput: '', _minStockInput: '' },
+      { name: '', unit_id: units[0]?.id || 1, purchase_price: 0, selling_price: 0, opening_stock: 0, min_stock: 0, location: '' },
     ]);
+    
+    toast.success('Variation saved successfully!');
   };
 
-  // Update handleSubmit to save the product and all saved variations to the database
+  // When saving, map UI state to strict ProductVariationFormData[]
+  const toStrictVariation = (v: VariationUI): ProductVariationFormData => ({
+    name: v.name,
+    unit_id: v.unit_id,
+    purchase_price: v.purchase_price,
+    selling_price: v.selling_price,
+    opening_stock: parseFractionalInput((v._stockInput ?? v.opening_stock?.toString() ?? '0').toString()),
+    min_stock: parseFractionalInput((v._minStockInput ?? v.min_stock?.toString() ?? '0').toString()),
+    location: v.location,
+  });
+
+  // Update handleSubmit with comprehensive validation
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    if (savedVariations.length === 0) {
-      setError('Please add at least one product variation before saving.');
+    setValidationErrors({});
+
+    // Validate everything before proceeding
+    if (!validateAllVariations()) {
+      setError('Please fix all validation errors before saving the product');
+      toast.error('Please fix all validation errors before saving the product');
       return;
     }
+
+    if (savedVariations.length === 0) {
+      setError('Please add at least one product variation before saving.');
+      toast.error('Please add at least one product variation before saving.');
+      return;
+    }
+
     try {
       // Save the product first
-      const firstVariation = savedVariations[0];
-      const minStockInput = firstVariation._minStockInput ?? '';
-      const productData = {
+      const productInsert = {
         name,
-        unit_id: firstVariation.unit_id,
-        min_stock: parseFractionalInput((minStockInput ?? '').toString()),
-        location: firstVariation.location || '',
         brand: brand || '',
         category: category || '',
-        created_by: null, // Set to null if no user id
+        created_by: null, // or set to the current user if available
       };
-      const createdProduct = await createProduct(productData);
+      const createdProduct = await createProduct(productInsert);
       const prodId = createdProduct.id;
-      setProductId(prodId);
       // Save all saved variations
       for (const v of savedVariations) {
         const unit = units.find(u => u.id === v.unit_id);
-        const isKg = unit?.name === 'kg';
-        const isL = unit?.name === 'l';
+        const isKg = unit?.subunit_name && unit?.subunit_factor;
         let stockInput = '';
         let minStockInput = '';
         if (isKg) {
-          stockInput = `${v._mainStock || 0} kg ${v._subStock || 0}g`;
-          minStockInput = `${v._mainMinStock || 0} kg ${v._subMinStock || 0}g`;
-        } else if (isL) {
-          stockInput = `${v._mainStock || 0} l ${v._subStock || 0}ml`;
-          minStockInput = `${v._mainMinStock || 0} l ${v._subMinStock || 0}ml`;
+          stockInput = `${v._mainStock || 0} ${v._subStock || 0}`;
+          minStockInput = `${v._mainMinStock || 0} ${v._subMinStock || 0}`;
         } else {
           stockInput = v._stockInput ?? '';
           minStockInput = v._minStockInput ?? '';
@@ -160,9 +339,9 @@ export default function ProductForm({ onClose, onSave, initialData }: ProductFor
           product_id: prodId,
           name: v.name,
           unit_id: v.unit_id,
-          opening_stock: parseFractionalInput((stockInput ?? '').toString()),
-          current_stock: parseFractionalInput((stockInput ?? '').toString()),
-          min_stock: parseFractionalInput((minStockInput ?? '').toString()),
+          opening_stock: parseFractionalInput((stockInput ?? '').toString(), unit?.subunit_factor),
+          current_stock: parseFractionalInput((stockInput ?? '').toString(), unit?.subunit_factor),
+          min_stock: parseFractionalInput((minStockInput ?? '').toString(), unit?.subunit_factor),
           location: v.location || '',
           purchase_price: v.purchase_price || 0,
           selling_price: v.selling_price || 0,
@@ -171,9 +350,10 @@ export default function ProductForm({ onClose, onSave, initialData }: ProductFor
         await createProductVariation(variantData);
       }
       toast.success('Product added successfully!');
-      onSave && onSave({ name, brand, category, id: prodId });
-    } catch (e: any) {
-      setError(e.message || 'Error saving product and variations');
+      onSave && onSave(productInsert);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error saving product and variations');
+      toast.error(e instanceof Error ? e.message : 'Error saving product and variations');
     }
   };
 
@@ -265,24 +445,34 @@ export default function ProductForm({ onClose, onSave, initialData }: ProductFor
           </button>
           <h2 className="text-xl font-bold mb-4 text-gray-900">{t('inventory.addProduct', 'Add Product')}</h2>
           <div className="space-y-3">
-            <input
-              className="w-full border rounded px-3 py-2 text-gray-900 placeholder-gray-500"
-              placeholder={t('inventory.productName')}
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-            />
+            <div>
+              <input
+                className={`w-full border rounded px-3 py-2 text-gray-900 placeholder-gray-500 ${
+                  validationErrors.product?.name ? 'border-red-500' : ''
+                }`}
+                placeholder={t('inventory.productName')}
+                value={name}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setName(e.target.value)}
+                required
+                suppressHydrationWarning
+              />
+              {validationErrors.product?.name && (
+                <p className="text-red-600 text-xs mt-1">{validationErrors.product.name}</p>
+              )}
+            </div>
             <input
               className="w-full border rounded px-3 py-2 text-gray-900 placeholder-gray-500"
               placeholder={t('inventory.brand', 'Brand')}
               value={brand}
-              onChange={(e) => setBrand(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setBrand(e.target.value)}
+              suppressHydrationWarning
             />
             <input
               className="w-full border rounded px-3 py-2 text-gray-900 placeholder-gray-500"
               placeholder={t('inventory.category', 'Category')}
               value={category}
-              onChange={(e) => setCategory(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCategory(e.target.value)}
+              suppressHydrationWarning
             />
           </div>
           <div className="mt-6">
@@ -298,12 +488,10 @@ export default function ProductForm({ onClose, onSave, initialData }: ProductFor
                 const unit = units.find(u => u.id === v.unit_id);
                 let displayStock = '';
                 let displayMinStock = '';
-                if (unit?.name === 'kg') {
-                  displayStock = parseFractionalInput(`${v._mainStock || 0} kg ${v._subStock || 0}g`).toString();
-                  displayMinStock = parseFractionalInput(`${v._mainMinStock || 0} kg ${v._subMinStock || 0}g`).toString();
-                } else if (unit?.name === 'l') {
-                  displayStock = parseFractionalInput(`${v._mainStock || 0} l ${v._subStock || 0}ml`).toString();
-                  displayMinStock = parseFractionalInput(`${v._mainMinStock || 0} l ${v._subMinStock || 0}ml`).toString();
+                const isKg = unit?.subunit_name && unit?.subunit_factor;
+                if (isKg) {
+                  displayStock = parseFractionalInput(`${v._mainStock || 0} ${v._subStock || 0}`, unit.subunit_factor).toString();
+                  displayMinStock = parseFractionalInput(`${v._mainMinStock || 0} ${v._subMinStock || 0}`, unit.subunit_factor).toString();
                 } else {
                   displayStock = parseFractionalInput(String(v._stockInput ?? '')).toString();
                   displayMinStock = parseFractionalInput(String(v._minStockInput ?? '')).toString();
@@ -345,8 +533,8 @@ export default function ProductForm({ onClose, onSave, initialData }: ProductFor
                 const v = variations[variations.length - 1];
                 const idx = variations.length - 1;
                 const unit = units.find(u => u.id === v.unit_id);
-                const isKg = unit?.name === 'kg';
-                const isL = unit?.name === 'l';
+                const selectedUnit = unit || { name: '', subunit_name: '', subunit_factor: 1 };
+                const isKg = selectedUnit.subunit_name && selectedUnit.subunit_factor;
                 const mainStock = v._mainStock ?? '';
                 const subStock = v._subStock ?? '';
                 const mainMinStock = v._mainMinStock ?? '';
@@ -359,172 +547,222 @@ export default function ProductForm({ onClose, onSave, initialData }: ProductFor
                       <div>
                         <label className="block text-xs font-medium text-gray-700 mb-1">{t('inventory.variationName', 'Name')}</label>
                         <input
-                          className="w-full border rounded px-2 py-1 text-gray-900 placeholder-gray-500"
+                          className={`w-full border rounded px-2 py-1 text-gray-900 placeholder-gray-500 ${
+                            validationErrors.variations?.[idx]?.name ? 'border-red-500' : ''
+                          }`}
                           placeholder={t('inventory.variationName', 'Name')}
                           value={v.name}
-                          onChange={(e) => handleVariationChange(idx, 'name', e.target.value)}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleVariationChange(idx, 'name', e.target.value)}
                           required={!!anyFieldFilled}
                         />
+                        {validationErrors.variations?.[idx]?.name && (
+                          <p className="text-red-600 text-xs mt-1">{validationErrors.variations[idx].name}</p>
+                        )}
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-gray-700 mb-1">{t('inventory.unit', 'Unit')}</label>
                         <select
-                          className="w-full border rounded px-2 py-1 text-gray-900"
+                          className={`w-full border rounded px-2 py-1 text-gray-900 ${
+                            validationErrors.variations?.[idx]?.unit_id ? 'border-red-500' : ''
+                          }`}
                           value={v.unit_id}
-                          onChange={(e) => handleVariationChange(idx, 'unit_id', e.target.value)}
+                          onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleVariationChange(idx, 'unit_id', Number(e.target.value))}
                           required={!!anyFieldFilled}
                         >
                           {units.map((unit) => (
-                            <option key={unit.id} value={unit.id}>{unit.name}</option>
+                            <option key={unit.id} value={unit.id}>
+                              {unit.name}{unit.full_name ? ` (${unit.full_name})` : ''}
+                            </option>
                           ))}
                         </select>
+                        {validationErrors.variations?.[idx]?.unit_id && (
+                          <p className="text-red-600 text-xs mt-1">{validationErrors.variations[idx].unit_id}</p>
+                        )}
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-gray-700 mb-1">
                           {t('inventory.purchasePrice', 'Purchase Price')} / {unit?.name || ''}
                         </label>
                         <input
-                          className="w-full border rounded px-2 py-1 text-gray-900 placeholder-gray-500"
+                          className={`w-full border rounded px-2 py-1 text-gray-900 placeholder-gray-500 ${
+                            validationErrors.variations?.[idx]?.purchase_price ? 'border-red-500' : ''
+                          }`}
                           placeholder={t('inventory.purchasePrice', 'Buy') + (unit?.name ? ` / ${unit.name}` : '')}
                           type="number"
                           value={v.purchase_price}
-                          onChange={(e) => handleVariationChange(idx, 'purchase_price', e.target.value)}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleVariationChange(idx, 'purchase_price', e.target.value)}
                           required={!!anyFieldFilled}
                         />
+                        {validationErrors.variations?.[idx]?.purchase_price && (
+                          <p className="text-red-600 text-xs mt-1">{validationErrors.variations[idx].purchase_price}</p>
+                        )}
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-gray-700 mb-1">
                           {t('inventory.sellingPrice', 'Selling Price')} / {unit?.name || ''}
                         </label>
                         <input
-                          className="w-full border rounded px-2 py-1 text-gray-900 placeholder-gray-500"
+                          className={`w-full border rounded px-2 py-1 text-gray-900 placeholder-gray-500 ${
+                            validationErrors.variations?.[idx]?.selling_price ? 'border-red-500' : ''
+                          }`}
                           placeholder={t('inventory.sellingPrice', 'Sell') + (unit?.name ? ` / ${unit.name}` : '')}
                           type="number"
                           value={v.selling_price}
-                          onChange={(e) => handleVariationChange(idx, 'selling_price', e.target.value)}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleVariationChange(idx, 'selling_price', e.target.value)}
                           required={!!anyFieldFilled}
                         />
+                        {validationErrors.variations?.[idx]?.selling_price && (
+                          <p className="text-red-600 text-xs mt-1">{validationErrors.variations[idx].selling_price}</p>
+                        )}
                       </div>
                       {/* Current Stock */}
-                      <div className={isKg || isL ? 'col-span-2' : ''}>
+                      <div className={isKg ? 'col-span-2' : ''}>
                         <label className="block text-xs font-medium text-gray-700 mb-1">{t('inventory.currentStock', 'Current Stock')}</label>
-                        {isKg || isL ? (
+                        {isKg ? (
                           <div className="flex items-center gap-2">
                             <input
-                              className="w-16 border rounded px-2 py-1 text-gray-900 placeholder-gray-500"
+                              className={`w-16 border rounded px-2 py-1 text-gray-900 placeholder-gray-500 ${
+                                validationErrors.variations?.[idx]?.opening_stock ? 'border-red-500' : ''
+                              }`}
                               type="number"
                               min="0"
-                              placeholder={isKg ? 'kg' : 'l'}
+                              placeholder={selectedUnit.name}
                               value={mainStock}
                               onChange={e => handleVariationChange(idx, '_mainStock', e.target.value)}
                               required={!!anyFieldFilled}
+                              onWheel={e => e.currentTarget.blur()}
                             />
-                            <span className="text-gray-700 text-sm">{isKg ? 'kg' : 'l'}</span>
+                            <span className="text-gray-700 text-sm">{selectedUnit.name}</span>
                             <input
-                              className="w-16 border rounded px-2 py-1 text-gray-900 placeholder-gray-500"
+                              className={`w-16 border rounded px-2 py-1 text-gray-900 placeholder-gray-500 ${
+                                validationErrors.variations?.[idx]?.opening_stock ? 'border-red-500' : ''
+                              }`}
                               type="number"
                               min="0"
-                              placeholder={isKg ? 'g' : 'ml'}
+                              placeholder={selectedUnit.subunit_name}
                               value={subStock}
                               onChange={e => handleVariationChange(idx, '_subStock', e.target.value)}
                               required={!!anyFieldFilled}
+                              onWheel={e => e.currentTarget.blur()}
                             />
-                            <span className="text-gray-700 text-sm">{isKg ? 'g' : 'ml'}</span>
+                            <span className="text-gray-700 text-sm">{selectedUnit.subunit_name}</span>
                           </div>
                         ) : (
                           <div className="flex items-center gap-2">
                             <input
-                              className="w-full border rounded px-2 py-1 text-gray-900 placeholder-gray-500"
+                              className={`w-full border rounded px-2 py-1 text-gray-900 placeholder-gray-500 ${
+                                validationErrors.variations?.[idx]?.opening_stock ? 'border-red-500' : ''
+                              }`}
                               placeholder={t('inventory.currentStock', 'e.g. 5 pcs')}
-                              value={v._stockInput}
+                              value={v._stockInput ?? ''}
                               pattern="[0-9kglmpcs.\s]*"
                               onChange={e => handleVariationChange(idx, '_stockInput', e.target.value.replace(/[^0-9kglmpcs.\s]/gi, ''))}
                               required={!!anyFieldFilled}
+                              onWheel={e => e.currentTarget.blur()}
                             />
-                            <span className="text-gray-700 text-sm">{unit?.name || ''}</span>
+                            <span className="text-gray-700 text-sm">{selectedUnit?.name || ''}</span>
                           </div>
                         )}
+                        {validationErrors.variations?.[idx]?.opening_stock && (
+                          <p className="text-red-600 text-xs mt-1">{validationErrors.variations[idx].opening_stock}</p>
+                        )}
                         <div className="text-xs text-gray-500 mt-1">
-                          {t('inventory.parsedStock', 'Parsed:')} {isNaN(parseFractionalInput((v._stockInput ?? '').toString())) ? <span className="text-red-600">Invalid</span> : parseFractionalInput((v._stockInput ?? '').toString())} {unit?.name || ''}
+                          {t('inventory.parsedStock', 'Parsed:')} {isNaN(parseFractionalInput((v._stockInput ?? '').toString())) ? <span className="text-red-600">Invalid</span> : parseFractionalInput((v._stockInput ?? '').toString())} {selectedUnit?.name || ''}
                         </div>
                       </div>
                       {/* Minimum Stock */}
-                      <div className={isKg || isL ? 'col-span-2' : ''}>
+                      <div className={isKg ? 'col-span-2' : ''}>
                         <label className="block text-xs font-medium text-gray-700 mb-1">{t('inventory.minStock', 'Minimum Stock')}</label>
-                        {isKg || isL ? (
+                        {isKg ? (
                           <div className="flex items-center gap-2">
                             <input
-                              className="w-16 border rounded px-2 py-1 text-gray-900 placeholder-gray-500"
+                              className={`w-16 border rounded px-2 py-1 text-gray-900 placeholder-gray-500 ${
+                                validationErrors.variations?.[idx]?.min_stock ? 'border-red-500' : ''
+                              }`}
                               type="number"
                               min="0"
-                              placeholder={isKg ? 'kg' : 'l'}
+                              placeholder={selectedUnit.name}
                               value={mainMinStock}
                               onChange={e => handleVariationChange(idx, '_mainMinStock', e.target.value)}
                               required={!!anyFieldFilled}
+                              onWheel={e => e.currentTarget.blur()}
                             />
-                            <span className="text-gray-700 text-sm">{isKg ? 'kg' : 'l'}</span>
+                            <span className="text-gray-700 text-sm">{selectedUnit.name}</span>
                             <input
-                              className="w-16 border rounded px-2 py-1 text-gray-900 placeholder-gray-500"
+                              className={`w-16 border rounded px-2 py-1 text-gray-900 placeholder-gray-500 ${
+                                validationErrors.variations?.[idx]?.min_stock ? 'border-red-500' : ''
+                              }`}
                               type="number"
                               min="0"
-                              placeholder={isKg ? 'g' : 'ml'}
+                              placeholder={selectedUnit.subunit_name}
                               value={subMinStock}
                               onChange={e => handleVariationChange(idx, '_subMinStock', e.target.value)}
                               required={!!anyFieldFilled}
+                              onWheel={e => e.currentTarget.blur()}
                             />
-                            <span className="text-gray-700 text-sm">{isKg ? 'g' : 'ml'}</span>
+                            <span className="text-gray-700 text-sm">{selectedUnit.subunit_name}</span>
                           </div>
                         ) : (
                           <div className="flex items-center gap-2">
                             <input
-                              className="w-full border rounded px-2 py-1 text-gray-900 placeholder-gray-500"
+                              className={`w-full border rounded px-2 py-1 text-gray-900 placeholder-gray-500 ${
+                                validationErrors.variations?.[idx]?.min_stock ? 'border-red-500' : ''
+                              }`}
                               placeholder={t('inventory.minStock', 'e.g. 2 pcs')}
-                              value={v._minStockInput}
+                              value={v._minStockInput ?? ''}
                               pattern="[0-9kglmpcs.\s]*"
                               onChange={e => handleVariationChange(idx, '_minStockInput', e.target.value.replace(/[^0-9kglmpcs.\s]/gi, ''))}
                               required={!!anyFieldFilled}
+                              onWheel={e => e.currentTarget.blur()}
                             />
-                            <span className="text-gray-700 text-sm">{unit?.name || ''}</span>
+                            <span className="text-gray-700 text-sm">{selectedUnit?.name || ''}</span>
                           </div>
                         )}
+                        {validationErrors.variations?.[idx]?.min_stock && (
+                          <p className="text-red-600 text-xs mt-1">{validationErrors.variations[idx].min_stock}</p>
+                        )}
                         <div className="text-xs text-gray-500 mt-1">
-                          {t('inventory.parsedStock', 'Parsed:')} {isNaN(parseFractionalInput((v._minStockInput ?? '').toString())) ? <span className="text-red-600">Invalid</span> : parseFractionalInput((v._minStockInput ?? '').toString())} {unit?.name || ''}
+                          {t('inventory.parsedStock', 'Parsed:')} {isNaN(parseFractionalInput((v._minStockInput ?? '').toString())) ? <span className="text-red-600">Invalid</span> : parseFractionalInput((v._minStockInput ?? '').toString())} {selectedUnit?.name || ''}
                         </div>
                       </div>
                       <div className="col-span-2">
                         <label className="block text-xs font-medium text-gray-700 mb-1">{t('inventory.location', 'Location')}</label>
                         <input
-                          className="w-full border rounded px-2 py-1 text-gray-900 placeholder-gray-500"
+                          className={`w-full border rounded px-2 py-1 text-gray-900 placeholder-gray-500 ${
+                            validationErrors.variations?.[idx]?.location ? 'border-red-500' : ''
+                          }`}
                           placeholder={t('inventory.location', 'Location')}
                           value={v.location}
-                          onChange={(e) => handleVariationChange(idx, 'location', e.target.value)}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleVariationChange(idx, 'location', e.target.value)}
                           required={!!anyFieldFilled}
                         />
+                        {validationErrors.variations?.[idx]?.location && (
+                          <p className="text-red-600 text-xs mt-1">{validationErrors.variations[idx].location}</p>
+                        )}
                       </div>
                     </div>
                     <div className="col-span-2 text-right text-sm text-gray-700 mt-2">
-                      {t('inventory.totalPurchaseValue', 'Total Purchase Value')}: {formatCurrency(v.purchase_price * parseFractionalInput((v._stockInput ?? '').toString()))}
+                      {t('inventory.totalPurchaseValue', 'Total Purchase Value')}: {formatCurrency(v.purchase_price * parseFractionalInput((v._stockInput ?? '').toString(), unit?.subunit_factor))}
                     </div>
                     <div className="col-span-2 text-right text-sm text-gray-700 mt-1">
-                      {t('inventory.estimatedRevenue', 'Estimated Revenue')}: {formatCurrency(v.selling_price * parseFractionalInput((v._stockInput ?? '').toString()))}
+                      {t('inventory.estimatedRevenue', 'Estimated Revenue')}: {formatCurrency(v.selling_price * parseFractionalInput((v._stockInput ?? '').toString(), unit?.subunit_factor))}
                     </div>
                     <div className="col-span-2 text-right text-sm text-gray-700 mt-1">
-                      {t('inventory.estimatedProfit', 'Estimated Profit')}: {formatCurrency((v.selling_price - v.purchase_price) * parseFractionalInput((v._stockInput ?? '').toString()))}
+                      {t('inventory.estimatedProfit', 'Estimated Profit')}: {formatCurrency((v.selling_price - v.purchase_price) * parseFractionalInput((v._stockInput ?? '').toString(), unit?.subunit_factor))}
                     </div>
                     <div className="col-span-2 flex justify-end mt-2">
                       <button
                         type="button"
                         className="bg-blue-600 text-white px-4 py-1 rounded-lg font-medium hover:bg-blue-700 text-sm mr-2"
                         onClick={() => handleSaveVariant(v, idx)}
-                        disabled={loadingIdx === idx}
                       >
-                        {loadingIdx === idx ? t('common.loading', 'Adding...') : t('common.add', 'Add')}
+                        Add
                       </button>
                       <button type="button" onClick={() => removeVariation(idx)} className="text-red-500 hover:text-red-700">
                         <TrashIcon className="w-5 h-5" />
                       </button>
                     </div>
-                    {error && loadingIdx === idx && (
+                    {error && (
                       <div className="text-red-600 text-xs mt-2">{error}</div>
                     )}
                   </div>

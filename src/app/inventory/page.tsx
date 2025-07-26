@@ -3,12 +3,18 @@
 import { useTranslation } from 'react-i18next';
 import { useState, useContext, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { PlusIcon, MagnifyingGlassIcon, FunnelIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, MagnifyingGlassIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
 import ProductForm from '@/components/ProductForm';
 import { ModalContext } from '@/components/ClientProviders';
 import { getAllProductsWithVariations, updateProductVariationStock } from '@/lib/database';
 import toast from 'react-hot-toast';
-import type { Product, ProductVariation } from '@/types';
+import type { Product, ProductVariation, ProductFormData } from '@/types';
+
+type EnrichedVariation = ProductVariation & {
+  productName: string;
+  productBrand: string;
+  productCategory: string;
+};
 
 export default function InventoryPage() {
   const { t } = useTranslation();
@@ -18,8 +24,8 @@ export default function InventoryPage() {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [stockModal, setStockModal] = useState({ open: false, variation: null });
+  const [error, setError] = useState<string | null>(null);
+  const [stockModal, setStockModal] = useState<{ open: boolean; variation: ProductVariation | null }>({ open: false, variation: null });
   const [newStock, setNewStock] = useState('');
   const [stockUpdateLoading, setStockUpdateLoading] = useState(false);
   
@@ -42,7 +48,7 @@ export default function InventoryPage() {
       const data = await getAllProductsWithVariations();
       const processedData = data.map((p) => ({
         ...p,
-        product_variations: (p.product_variations || []).map((v) => ({
+        product_variations: (p.product_variations || []).map((v: ProductVariation) => ({
           ...v,
           current_stock: v.current_stock || 0,
           min_stock: v.min_stock || 0,
@@ -69,19 +75,17 @@ export default function InventoryPage() {
 
   // Create variation-level data when filters are active
   const createVariationLevelData = useCallback(() => {
-    const allVariations = products.flatMap((product: Product) => 
+    const allVariations: EnrichedVariation[] = products.flatMap((product: Product) =>
       (product.product_variations || []).map((v: ProductVariation) => ({
         ...v,
-        productId: product.id,
         productName: product.name || '',
         productBrand: product.brand || '',
         productCategory: product.category || '',
-        productLocation: product.location || '',
       }))
     );
 
     return allVariations
-      .filter(v => {
+      .filter((v: EnrichedVariation) => {
         const query = searchQuery.toLowerCase().trim();
         if (!query) return true;
         
@@ -97,7 +101,7 @@ export default function InventoryPage() {
           default: return true;
         }
       })
-      .sort((a, b) => {
+      .sort((a: EnrichedVariation, b: EnrichedVariation) => {
         // Apply stock sort
         if (stockSort === 'low-high') return a.current_stock - b.current_stock;
         if (stockSort === 'high-low') return b.current_stock - a.current_stock;
@@ -111,20 +115,20 @@ export default function InventoryPage() {
   }, [products, searchQuery, stockFilter, stockSort, priceSort]);
 
   // Group variations by product for display
-  const groupVariationsByProduct = useCallback((variations: any[]) => {
-    const grouped: { [key: number]: any } = {};
-    variations.forEach((v: any) => {
-      if (!grouped[v.productId]) {
-        grouped[v.productId] = {
-          id: v.productId,
+  const groupVariationsByProduct = useCallback((variations: EnrichedVariation[]) => {
+    const grouped: { [key: number]: { id: number; name: string; brand: string; category: string; location: string; variations: EnrichedVariation[] } } = {};
+    variations.forEach((v: EnrichedVariation) => {
+      if (!grouped[v.product_id]) {
+        grouped[v.product_id] = {
+          id: v.product_id,
           name: v.productName,
           brand: v.productBrand,
           category: v.productCategory,
-          location: v.productLocation,
+          location: v.location, // This is the variation's location
           variations: []
         };
       }
-      grouped[v.productId].variations.push(v);
+      grouped[v.product_id].variations.push(v);
     });
     return Object.values(grouped);
   }, []);
@@ -207,31 +211,41 @@ export default function InventoryPage() {
       : filteredProducts;
   }, [hasActiveFilters, groupVariationsByProduct, createVariationLevelData, filteredProducts]);
 
-  const totalValue = displayData.reduce(
-    (sum: number, product: Product) =>
-      sum +
-      (product.product_variations || []).reduce(
-        (vSum: number, v: ProductVariation) => vSum + v.current_stock * v.selling_price,
-        0
-      ),
-    0
-  );
+  // Helper type guard
+  function isGroupedProduct(obj: unknown): obj is { id: number; name: string; brand: string; category: string; location: string; variations: EnrichedVariation[] } {
+    return typeof obj === 'object' && obj !== null && Array.isArray((obj as { variations?: unknown }).variations);
+  }
 
-  const lowStockCount = displayData.reduce(
-    (count: number, product: Product) =>
-      count +
-      (product.product_variations || []).filter((v: ProductVariation) => v.current_stock <= v.min_stock).length,
-    0
-  );
+  const totalValue = displayData.reduce((sum: number, product: Product | { id: number; name: string; brand: string; category: string; location: string; variations: EnrichedVariation[] }) => {
+    if (isGroupedProduct(product)) {
+      return sum + product.variations.reduce((vSum: number, v: EnrichedVariation) => vSum + v.current_stock * v.selling_price, 0);
+    } else {
+      return sum + (product.product_variations || []).reduce((vSum: number, v: ProductVariation) => vSum + v.current_stock * v.selling_price, 0);
+    }
+  }, 0);
 
-  const handleSaveProduct = (product: Product) => {
+  const lowStockCount = displayData.reduce((count: number, product: Product | { id: number; name: string; brand: string; category: string; location: string; variations: EnrichedVariation[] }) => {
+    if (isGroupedProduct(product)) {
+      return count + product.variations.filter((v: EnrichedVariation) => v.current_stock <= v.min_stock).length;
+    } else {
+      return count + (product.product_variations || []).filter((v: ProductVariation) => v.current_stock <= v.min_stock).length;
+    }
+  }, 0);
+
+  const handleSaveProduct = (product: { name: string; brand: string; category: string; created_by: string | null }) => {
     setShowProductForm(false);
     setSelectedProduct(null);
     loadProducts();
   };
 
-  const handleEditProduct = (product: Product) => {
-    router.push(`/inventory/${product.id}`);
+  const handleEditProduct = (product: Product | { id: number; name: string; brand: string; category: string; location: string; variations: EnrichedVariation[] }) => {
+    if (isGroupedProduct(product)) {
+      if (product.variations.length > 0) {
+        router.push(`/inventory/${product.variations[0].product_id}`);
+      }
+    } else {
+      router.push(`/inventory/${product.id}`);
+    }
   };
 
   const handleCloseProductForm = () => {
@@ -263,8 +277,8 @@ export default function InventoryPage() {
       await loadProducts();
       closeStockModal();
       toast.success('Stock updated successfully!');
-    } catch (e: any) {
-      setError(e.message);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error updating stock');
     } finally {
       setStockUpdateLoading(false);
     }
@@ -277,6 +291,26 @@ export default function InventoryPage() {
     setStockSort('none');
     setPriceSort('none');
   };
+
+  // Helper to map Product to Partial<ProductFormData>
+  function mapProductToFormData(product: Product | null): Partial<ProductFormData> | undefined {
+    if (!product) return undefined;
+    return {
+      name: product.name,
+      brand: product.brand,
+      category: product.category,
+      variations: (product.product_variations || []).map(v => ({
+        name: v.name,
+        unit_id: v.unit_id,
+        purchase_price: v.purchase_price,
+        selling_price: v.selling_price,
+        opening_stock: v.opening_stock,
+        min_stock: v.min_stock,
+        location: v.location,
+      })),
+      id: product.id,
+    };
+  }
 
   return (
     <div className="p-4 space-y-4">
@@ -296,7 +330,7 @@ export default function InventoryPage() {
       <div className="flex gap-4 mb-2">
         <div className="flex-1 bg-white rounded-lg shadow p-4 flex flex-col items-center">
           <span className="text-sm text-gray-500">{t('inventory.totalValue', 'Total Value')}</span>
-          <span className="text-xl font-bold text-green-600">₹{totalValue.toLocaleString('en-IN')}</span>
+          <span className="text-xl font-bold text-green-600">₹{totalValue.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
         </div>
         <div className="flex-1 bg-white rounded-lg shadow p-4 flex flex-col items-center">
           <span className="text-sm text-gray-500">{t('inventory.lowStockAlert', 'Low Stock')}</span>
@@ -388,56 +422,108 @@ export default function InventoryPage() {
                 )}
               </div>
               <div className="p-3">
-                {(product.product_variations || []).map((variation, index) => {
-                  const v = variation as ProductVariation;
-                  return (
-                    <div
-                      key={v.id}
-                      className={`flex items-center justify-between py-2 ${
-                        index !== (product.product_variations?.length || 0) - 1 ? 'border-b border-gray-100' : ''
-                      }`}
-                    >
-                      <div className="flex-1">
-                        <p className="font-medium text-gray-900">{v.name}</p>
-                        <div className="flex items-center space-x-4 mt-1">
-                          <span className={`text-sm font-medium ${
-                            v.current_stock <= v.min_stock ? 'text-red-600' : 'text-green-600'
-                          }`}>
-                            Stock: {v.current_stock} {v.unit || ''}
-                          </span>
-                          <span className="text-sm text-gray-500">
-                            Min: {v.min_stock} {v.unit || ''}
-                          </span>
-                          <span className="text-sm font-medium text-gray-900">
-                            ₹{v.selling_price}
-                          </span>
+                {isGroupedProduct(product)
+                  ? product.variations.map((variation: EnrichedVariation, index: number) => {
+                      const v = variation;
+                      return (
+                        <div
+                          key={v.id}
+                          className={`flex items-center justify-between py-2 ${
+                            index !== (product.variations?.length || 0) - 1 ? 'border-b border-gray-100' : ''
+                          }`}
+                        >
+                          <div className="flex-1">
+                            <p className="font-medium text-gray-900">{v.name}</p>
+                            <div className="flex items-center space-x-4 mt-1">
+                              <span className={`text-sm font-medium ${
+                                v.current_stock <= v.min_stock ? 'text-red-600' : 'text-green-600'
+                              }`}>
+                                Stock: {v.current_stock} {v.unit || ''}
+                              </span>
+                              <span className="text-sm text-gray-500">
+                                Min: {v.min_stock} {v.unit || ''}
+                              </span>
+                              <span className="text-sm font-medium text-gray-900">
+                                ₹{v.selling_price}
+                              </span>
+                            </div>
+                            {v.current_stock <= v.min_stock && (
+                              <span className="inline-block mt-1 px-2 py-1 text-xs font-medium bg-red-100 text-red-800 rounded-full">
+                                {v.current_stock === 0 
+                                  ? t('inventory.outOfStock', 'OUT OF STOCK') 
+                                  : t('inventory.lowStock', 'LOW STOCK')
+                                }
+                              </span>
+                            )}
+                          </div>
+                          <button
+                            className="flex flex-col items-center justify-center w-14 h-14 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg font-semibold text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openStockModal(v);
+                            }}
+                            title={t('inventory.updateStock', 'Update Stock')}
+                            aria-label={`Update stock for ${v.name}`}
+                          >
+                            <ArrowPathIcon className="w-4 h-4 mb-1" />
+                            <span className="leading-tight text-xs">
+                              {t('inventory.update', 'Update')}<br />{t('inventory.stock', 'Stock')}
+                            </span>
+                          </button>
                         </div>
-                        {v.current_stock <= v.min_stock && (
-                          <span className="inline-block mt-1 px-2 py-1 text-xs font-medium bg-red-100 text-red-800 rounded-full">
-                            {v.current_stock === 0 
-                              ? t('inventory.outOfStock', 'OUT OF STOCK') 
-                              : t('inventory.lowStock', 'LOW STOCK')
-                            }
-                          </span>
-                        )}
-                      </div>
-                      <button
-                        className="flex flex-col items-center justify-center w-14 h-14 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg font-semibold text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openStockModal(v);
-                        }}
-                        title={t('inventory.updateStock', 'Update Stock')}
-                        aria-label={`Update stock for ${v.name}`}
-                      >
-                        <ArrowPathIcon className="w-4 h-4 mb-1" />
-                        <span className="leading-tight text-xs">
-                          {t('inventory.update', 'Update')}<br />{t('inventory.stock', 'Stock')}
-                        </span>
-                      </button>
-                    </div>
-                  );
-                })}
+                      );
+                    })
+                  : (product.product_variations || []).map((variation: ProductVariation, index: number) => {
+                      const v = variation;
+                      return (
+                        <div
+                          key={v.id}
+                          className={`flex items-center justify-between py-2 ${
+                            index !== (product.product_variations?.length || 0) - 1 ? 'border-b border-gray-100' : ''
+                          }`}
+                        >
+                          <div className="flex-1">
+                            <p className="font-medium text-gray-900">{v.name}</p>
+                            <div className="flex items-center space-x-4 mt-1">
+                              <span className={`text-sm font-medium ${
+                                v.current_stock <= v.min_stock ? 'text-red-600' : 'text-green-600'
+                              }`}>
+                                Stock: {v.current_stock} {v.unit || ''}
+                              </span>
+                              <span className="text-sm text-gray-500">
+                                Min: {v.min_stock} {v.unit || ''}
+                              </span>
+                              <span className="text-sm font-medium text-gray-900">
+                                ₹{v.selling_price}
+                              </span>
+                            </div>
+                            {v.current_stock <= v.min_stock && (
+                              <span className="inline-block mt-1 px-2 py-1 text-xs font-medium bg-red-100 text-red-800 rounded-full">
+                                {v.current_stock === 0 
+                                  ? t('inventory.outOfStock', 'OUT OF STOCK') 
+                                  : t('inventory.lowStock', 'LOW STOCK')
+                                }
+                              </span>
+                            )}
+                          </div>
+                          <button
+                            className="flex flex-col items-center justify-center w-14 h-14 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg font-semibold text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openStockModal(v);
+                            }}
+                            title={t('inventory.updateStock', 'Update Stock')}
+                            aria-label={`Update stock for ${v.name}`}
+                          >
+                            <ArrowPathIcon className="w-4 h-4 mb-1" />
+                            <span className="leading-tight text-xs">
+                              {t('inventory.update', 'Update')}<br />{t('inventory.stock', 'Stock')}
+                            </span>
+                          </button>
+                        </div>
+                      );
+                    })
+                }
               </div>
             </div>
           ))}
@@ -495,7 +581,7 @@ export default function InventoryPage() {
         <ProductForm
           onClose={handleCloseProductForm}
           onSave={handleSaveProduct}
-          initialData={selectedProduct}
+          initialData={mapProductToFormData(selectedProduct)}
         />
       )}
     </div>

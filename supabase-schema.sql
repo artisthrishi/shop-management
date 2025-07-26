@@ -2495,7 +2495,10 @@ ALTER SEQUENCE public.shop_settings_id_seq OWNED BY public.shop_settings.id;
 CREATE TABLE public.units (
     id integer NOT NULL,
     name text NOT NULL,
-    fractional boolean DEFAULT false NOT NULL
+    fractional boolean DEFAULT false NOT NULL,
+    full_name text,
+    subunit_name text,
+    subunit_factor integer
 );
 
 
@@ -3610,14 +3613,6 @@ ALTER TABLE ONLY public.product_variations
 
 ALTER TABLE ONLY public.products
     ADD CONSTRAINT products_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id);
-
-
---
--- Name: products products_unit_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.products
-    ADD CONSTRAINT products_unit_id_fkey FOREIGN KEY (unit_id) REFERENCES public.units(id);
 
 
 --

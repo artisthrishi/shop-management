@@ -704,29 +704,29 @@ export default function ProductDetailsPage() {
                     if (isKg) {
                       return (
                         <div className="flex items-center gap-2">
-                                                      <input
-                              className={`w-16 border rounded px-2 py-1 text-gray-900 placeholder-gray-500 ${
-                                validationErrors.current_stock ? 'border-red-500' : ''
-                              }`}
-                              type="number"
-                              min="0"
-                              placeholder={selectedUnit.name}
-                              value={editVariation?._mainStock ?? ''}
-                              onChange={e => handleEditChange('_mainStock', e.target.value)}
-                              onWheel={e => e.currentTarget.blur()}
-                            />
+                          <input
+                            className={`w-16 border rounded px-2 py-1 text-gray-900 placeholder-gray-500 ${
+                              validationErrors.current_stock ? 'border-red-500' : ''
+                            }`}
+                            type="number"
+                            min="0"
+                            placeholder={selectedUnit.name}
+                            value={editVariation?._mainStock ?? ''}
+                            onChange={e => handleEditChange('_mainStock', e.target.value)}
+                            onWheel={e => e.currentTarget.blur()}
+                          />
                           <span className="text-gray-700 text-sm">{selectedUnit.name}</span>
-                                                      <input
-                              className={`w-16 border rounded px-2 py-1 text-gray-900 placeholder-gray-500 ${
-                                validationErrors.current_stock ? 'border-red-500' : ''
-                              }`}
-                              type="number"
-                              min="0"
-                              placeholder={selectedUnit.subunit_name}
-                              value={editVariation?._subStock ?? ''}
-                              onChange={e => handleEditChange('_subStock', e.target.value)}
-                              onWheel={e => e.currentTarget.blur()}
-                            />
+                          <input
+                            className={`w-16 border rounded px-2 py-1 text-gray-900 placeholder-gray-500 ${
+                              validationErrors.current_stock ? 'border-red-500' : ''
+                            }`}
+                            type="number"
+                            min="0"
+                            placeholder={selectedUnit.subunit_name}
+                            value={editVariation?._subStock ?? ''}
+                            onChange={e => handleEditChange('_subStock', e.target.value)}
+                            onWheel={e => e.currentTarget.blur()}
+                          />
                           <span className="text-gray-700 text-sm">{selectedUnit.subunit_name}</span>
                         </div>
                       );

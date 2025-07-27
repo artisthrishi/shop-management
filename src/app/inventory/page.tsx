@@ -222,36 +222,8 @@ export default function InventoryPage() {
     setSelectedProduct(null);
   };
 
-  const handleEditProduct = (product: Product | { id: number; name: string; brand: string; category: string; location: string; variations: EnrichedVariation[] }) => {
-    if (isGroupedProduct(product)) {
-      // Convert grouped product back to Product format for editing
-      const firstVariation = product.variations[0];
-      const productToEdit: Product = {
-        id: product.id,
-        name: product.name,
-        brand: product.brand,
-        category: product.category,
-        created_by: null,
-        created_at: '',
-        product_variations: product.variations.map(v => ({
-          id: v.id,
-          product_id: v.product_id,
-          name: v.name,
-          purchase_price: 0, // Default value
-          selling_price: v.selling_price,
-          opening_stock: v.current_stock || 0,
-          current_stock: v.current_stock,
-          min_stock: v.min_stock,
-          location: '', // Default value
-          created_by: null,
-          unit_id: v.unit_id,
-        })),
-      };
-      setSelectedProduct(productToEdit);
-    } else {
-      setSelectedProduct(product);
-    }
-    setShowProductForm(true);
+  const handleEditProduct = (product: Product) => {
+    router.push(`/inventory/${product.id}`);
   };
 
   const handleCloseProductForm = () => {

@@ -80,6 +80,7 @@
     "inStock": "In",
     "lowToHigh": "Low→High",
     "highToLow": "High→Low",
+    "editProduct": "Edit Product",
     "filterOptions": {
       "stock": "Stock",
       "low": "Low",

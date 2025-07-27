@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useState, useContext, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { PlusIcon, MagnifyingGlassIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
+import Fuse from 'fuse.js';
 import ProductForm from '@/components/ProductForm';
 import { ModalContext } from '@/components/ClientProviders';
 import { getAllProductsWithVariations, updateProductVariationStock } from '@/lib/database';
@@ -68,23 +69,32 @@ export default function InventoryPage() {
     loadProducts();
   }, []);
 
+  // Fuzzy search configuration
+  const fuseOptions = {
+    keys: [
+      { name: 'name', weight: 1 },
+      { name: 'product_variations.name', weight: 0.8 }
+    ],
+    threshold: 0.3, // 0.0 = exact, 1.0 = very fuzzy
+    includeScore: true,
+    minMatchCharLength: 2,
+    shouldSort: true
+  };
+
   // Unified filter and sort logic
   const filteredAndSortedProducts = useMemo(() => {
-    // First, filter products by search query and stock filter
-    const filteredProducts = products.filter((product) => {
-      const query = searchQuery.toLowerCase().trim();
-      
-      // Search filter: match product name OR any variation name
-      if (query) {
-        const productNameMatch = product.name?.toLowerCase().includes(query);
-        const variationNameMatch = (product.product_variations || []).some(
-          (v) => v.name?.toLowerCase().includes(query)
-        );
-        if (!productNameMatch && !variationNameMatch) return false;
-      }
+    let filteredProducts = products;
 
-      // Stock filter: show product if ANY variation matches the criteria
-      if (stockFilter !== 'all') {
+    // Apply fuzzy search if query exists
+    if (searchQuery.trim()) {
+      const fuse = new Fuse(products, fuseOptions);
+      const searchResults = fuse.search(searchQuery.trim());
+      filteredProducts = searchResults.map(result => result.item);
+    }
+
+    // Apply stock filter
+    if (stockFilter !== 'all') {
+      filteredProducts = filteredProducts.filter((product) => {
         const hasMatchingVariation = (product.product_variations || []).some((v) => {
           switch (stockFilter) {
             case 'low': return v.current_stock <= v.min_stock;
@@ -93,11 +103,9 @@ export default function InventoryPage() {
             default: return true;
           }
         });
-        if (!hasMatchingVariation) return false;
-      }
-
-      return true;
-    });
+        return hasMatchingVariation;
+      });
+    }
 
     // Then, sort products and their variations
     return filteredProducts
@@ -230,16 +238,16 @@ export default function InventoryPage() {
   }
 
   return (
-    <div className="p-4 space-y-4">
+    <div className="p-4 space-y-4 bg-gray-200 min-h-screen">
       {/* Header */}
-      <div className="flex items-center justify-between mb-2">
-        <h1 className="text-2xl font-bold text-gray-900">{t('inventory.title')}</h1>
+      <div className="flex justify-between items-center mb-2">
+        <h1 className="text-2xl font-bold text-gray-900">{t('inventory.title', 'Inventory')}</h1>
         <button
-          className="inline-flex items-center px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
-          onClick={() => { setShowProductForm(true); setSelectedProduct(null); }}
+          onClick={() => setShowProductForm(true)}
+          className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
         >
           <PlusIcon className="w-5 h-5 mr-2" />
-          {t('inventory.addProduct')}
+          {t('inventory.addProduct', 'Add Product')}
         </button>
       </div>
 
@@ -251,7 +259,7 @@ export default function InventoryPage() {
           placeholder={t('inventory.search', 'Search products...')}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+          className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 text-gray-900 placeholder-gray-500"
         />
       </div>
 
@@ -319,120 +327,182 @@ export default function InventoryPage() {
       {loading && <div className="text-center text-gray-500 py-8">{t('common.loading', 'Loading...')}</div>}
       {error && <div className="text-center text-red-500 py-4">{error}</div>}
 
+      {/* Sticky Table Headers */}
+      {!loading && !error && filteredAndSortedProducts.length > 0 && (
+        <div className="sticky top-0 z-10 bg-white border-b border-gray-200 shadow-sm">
+          <div className="grid grid-cols-12 gap-1 px-2 py-2 text-xs font-medium text-gray-500 uppercase tracking-wide text-xs">
+            <div className="col-span-4 text-xs"></div>
+            <div className="col-span-2 text-center text-xs">Stock</div>
+            <div className="col-span-2 text-center text-xs">Min</div>
+            <div className="col-span-2 text-center text-xs">Price</div>
+            <div className="col-span-2 text-center text-xs">Action</div>
+          </div>
+        </div>
+      )}
+
       {/* Products List */}
       {!loading && !error && (
-        <div className="grid grid-cols-1 gap-4">
+        <div className="space-y-2">
           {filteredAndSortedProducts.map((product) => (
             <div
               key={product.id}
-              className="bg-white rounded-lg shadow cursor-pointer hover:shadow-lg transition-shadow"
+              className="bg-white rounded-lg shadow-2xl cursor-pointer hover:shadow-2xl transition-shadow"
               onClick={() => handleEditProduct(product)}
             >
-              <div className="p-3 border-b border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-900">{product.name}</h3>
-                {product.brand && (
-                  <p className="text-sm text-gray-500">Brand: {product.brand}</p>
-                )}
+              {/* Product Header */}
+              <div className="p-2 border-b border-gray-200 bg-gray-100">
+                <div className="flex items-center space-x-2">
+                  <h3 className="text-lg font-semibold text-gray-900">{product.name}</h3>
+                  {product.brand && (
+                    <span className="text-sm text-gray-500">{product.brand}</span>
+                  )}
+                </div>
               </div>
-              <div className="p-3">
+
+              {/* Variations Table */}
+              <div className="overflow-hidden">
                 {isGroupedProduct(product)
                   ? product.variations.map((variation: EnrichedVariation, index: number) => {
                       const v = variation;
+                      const isLowStock = v.current_stock <= v.min_stock;
+                      const isOutOfStock = v.current_stock === 0;
+                      
                       return (
                         <div
                           key={v.id}
-                          className={`flex items-center justify-between py-2 ${
+                          className={`grid grid-cols-12 gap-1 px-2 py-2 items-center ${
                             index !== (product.variations?.length || 0) - 1 ? 'border-b border-gray-100' : ''
-                          }`}
+                          } hover:bg-gray-50`}
                         >
-                          <div className="flex-1">
-                            <p className="font-medium text-gray-900">{v.name}</p>
-                            <div className="flex items-center space-x-4 mt-1">
-                              <span className={`text-sm font-medium ${
-                                v.current_stock <= v.min_stock ? 'text-red-600' : 'text-green-600'
-                              }`}>
-                                Stock: {v.current_stock} {v.unit || ''}
-                              </span>
-                              <span className="text-sm text-gray-500">
-                                Min: {v.min_stock} {v.unit || ''}
-                              </span>
-                              <span className="text-sm font-medium text-gray-900">
-                                ₹{v.selling_price}
-                              </span>
+                          {/* Variation Name */}
+                          <div className="col-span-4">
+                            <div className="flex flex-col">
+                              <span className="font-medium text-gray-900">{v.name}</span>
+                              {(isLowStock || isOutOfStock) && (
+                                <span className={`inline-flex items-center justify-center px-2 py-0.5 text-[10px] font-medium rounded-full mt-1 whitespace-nowrap ${
+                                  isOutOfStock 
+                                    ? 'bg-red-100 text-red-800' 
+                                    : 'bg-orange-100 text-orange-800'
+                                }`}>
+                                  {isOutOfStock 
+                                    ? t('inventory.outOfStock', 'OUT OF STOCK') 
+                                    : t('inventory.lowStock', 'LOW STOCK')
+                                  }
+                                </span>
+                              )}
                             </div>
-                            {v.current_stock <= v.min_stock && (
-                              <span className="inline-block mt-1 px-2 py-1 text-xs font-medium bg-red-100 text-red-800 rounded-full">
-                                {v.current_stock === 0 
-                                  ? t('inventory.outOfStock', 'OUT OF STOCK') 
-                                  : t('inventory.lowStock', 'LOW STOCK')
-                                }
-                              </span>
-                            )}
                           </div>
-                          <button
-                            className="flex flex-col items-center justify-center w-14 h-14 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg font-semibold text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              openStockModal(v);
-                            }}
-                            title={t('inventory.updateStock', 'Update Stock')}
-                            aria-label={`Update stock for ${v.name}`}
-                          >
-                            <ArrowPathIcon className="w-4 h-4 mb-1" />
-                            <span className="leading-tight text-xs">
-                              {t('inventory.update', 'Update')}<br />{t('inventory.stock', 'Stock')}
+
+                          {/* Stock */}
+                          <div className="col-span-2 text-center">
+                            <span className={`text-sm font-medium ${
+                              isLowStock ? 'text-red-600' : 'text-green-600'
+                            }`}>
+                              {v.current_stock} {v.unit || ''}
                             </span>
-                          </button>
+                          </div>
+
+                          {/* Min Stock */}
+                          <div className="col-span-2 text-center">
+                            <span className="text-sm text-gray-600">
+                              {v.min_stock} {v.unit || ''}
+                            </span>
+                          </div>
+
+                          {/* Price */}
+                          <div className="col-span-2 text-center">
+                            <span className="text-sm font-medium text-gray-900">
+                              ₹{v.selling_price}
+                            </span>
+                          </div>
+
+                          {/* Update Button */}
+                          <div className="col-span-2 text-center">
+                            <button
+                              className="flex items-center justify-center gap-1 w-auto h-8 px-3 py-1 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openStockModal(v);
+                              }}
+                              title={t('inventory.updateStock', 'Update Stock')}
+                              aria-label={`Update stock for ${v.name}`}
+                            >
+                              <ArrowPathIcon className="w-3 h-3" />
+                              <span>{t('inventory.stock', 'Stock')}</span>
+                            </button>
+                          </div>
                         </div>
                       );
                     })
                   : (product.product_variations || []).map((variation: ProductVariation, index: number) => {
                       const v = variation;
+                      const isLowStock = v.current_stock <= v.min_stock;
+                      const isOutOfStock = v.current_stock === 0;
+                      
                       return (
                         <div
                           key={v.id}
-                          className={`flex items-center justify-between py-2 ${
+                          className={`grid grid-cols-12 gap-1 px-2 py-2 items-center ${
                             index !== (product.product_variations?.length || 0) - 1 ? 'border-b border-gray-100' : ''
-                          }`}
+                          } hover:bg-gray-50`}
                         >
-                          <div className="flex-1">
-                            <p className="font-medium text-gray-900">{v.name}</p>
-                            <div className="flex items-center space-x-4 mt-1">
-                              <span className={`text-sm font-medium ${
-                                v.current_stock <= v.min_stock ? 'text-red-600' : 'text-green-600'
-                              }`}>
-                                Stock: {v.current_stock} {v.unit || ''}
-                              </span>
-                              <span className="text-sm text-gray-500">
-                                Min: {v.min_stock} {v.unit || ''}
-                              </span>
-                              <span className="text-sm font-medium text-gray-900">
-                                ₹{v.selling_price}
-                              </span>
+                          {/* Variation Name */}
+                          <div className="col-span-4">
+                            <div className="flex flex-col">
+                              <span className="font-medium text-gray-900">{v.name}</span>
+                              {(isLowStock || isOutOfStock) && (
+                                <span className={`inline-flex items-center justify-center px-2 py-0.5 text-[10px] font-medium rounded-full mt-1 whitespace-nowrap ${
+                                  isOutOfStock 
+                                    ? 'bg-red-100 text-red-800' 
+                                    : 'bg-orange-100 text-orange-800'
+                                }`}>
+                                  {isOutOfStock 
+                                    ? t('inventory.outOfStock', 'OUT OF STOCK') 
+                                    : t('inventory.lowStock', 'LOW STOCK')
+                                  }
+                                </span>
+                              )}
                             </div>
-                            {v.current_stock <= v.min_stock && (
-                              <span className="inline-block mt-1 px-2 py-1 text-xs font-medium bg-red-100 text-red-800 rounded-full">
-                                {v.current_stock === 0 
-                                  ? t('inventory.outOfStock', 'OUT OF STOCK') 
-                                  : t('inventory.lowStock', 'LOW STOCK')
-                                }
-                              </span>
-                            )}
                           </div>
-                          <button
-                            className="flex flex-col items-center justify-center w-14 h-14 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg font-semibold text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              openStockModal(v);
-                            }}
-                            title={t('inventory.updateStock', 'Update Stock')}
-                            aria-label={`Update stock for ${v.name}`}
-                          >
-                            <ArrowPathIcon className="w-4 h-4 mb-1" />
-                            <span className="leading-tight text-xs">
-                              {t('inventory.update', 'Update')}<br />{t('inventory.stock', 'Stock')}
+
+                          {/* Stock */}
+                          <div className="col-span-2 text-center">
+                            <span className={`text-sm font-medium ${
+                              isLowStock ? 'text-red-600' : 'text-green-600'
+                            }`}>
+                              {v.current_stock} {v.unit || ''}
                             </span>
-                          </button>
+                          </div>
+
+                          {/* Min Stock */}
+                          <div className="col-span-2 text-center">
+                            <span className="text-sm text-gray-600">
+                              {v.min_stock} {v.unit || ''}
+                            </span>
+                          </div>
+
+                          {/* Price */}
+                          <div className="col-span-2 text-center">
+                            <span className="text-sm font-medium text-gray-900">
+                              ₹{v.selling_price}
+                            </span>
+                          </div>
+
+                          {/* Update Button */}
+                          <div className="col-span-2 text-center">
+                            <button
+                              className="flex items-center justify-center gap-1 w-auto h-8 px-3 py-1 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openStockModal(v);
+                              }}
+                              title={t('inventory.updateStock', 'Update Stock')}
+                              aria-label={`Update stock for ${v.name}`}
+                            >
+                              <ArrowPathIcon className="w-3 h-3" />
+                              <span>{t('inventory.stock', 'Stock')}</span>
+                            </button>
+                          </div>
                         </div>
                       );
                     })

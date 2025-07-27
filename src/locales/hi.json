@@ -80,6 +80,7 @@
     "inStock": "उपलब्ध",
     "lowToHigh": "कम→ज्यादा",
     "highToLow": "ज्यादा→कम",
+    "editProduct": "उत्पाद संपादित करें",
     "filterOptions": {
       "stock": "स्टॉक",
       "low": "कम",

@@ -80,6 +80,7 @@
     "inStock": "उपलब्ध",
     "lowToHigh": "कमी→जास्त",
     "highToLow": "जास्त→कमी",
+    "editProduct": "उत्पादन संपादित करा",
     "filterOptions": {
       "stock": "साठा",
       "low": "कमी",

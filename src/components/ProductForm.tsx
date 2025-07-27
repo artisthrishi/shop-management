@@ -655,17 +655,17 @@ export default function ProductForm({ onClose, onSave, initialData }: ProductFor
                             <span className="text-gray-700 text-sm">{selectedUnit.subunit_name}</span>
                           </div>
                         ) : (
-                          <input
-                            className={`w-full border rounded px-2 py-1 text-gray-900 placeholder-gray-500 ${
-                              validationErrors.variations?.[idx]?.opening_stock ? 'border-red-500' : ''
-                            }`}
+                            <input
+                              className={`w-full border rounded px-2 py-1 text-gray-900 placeholder-gray-500 ${
+                                validationErrors.variations?.[idx]?.opening_stock ? 'border-red-500' : ''
+                              }`}
                             type="number"
                             min="0"
                             placeholder="Enter opening stock"
-                            value={v._stockInput ?? ''}
+                              value={v._stockInput ?? ''}
                             onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleVariationChange(idx, '_stockInput', e.target.value)}
-                            onWheel={e => e.currentTarget.blur()}
-                          />
+                              onWheel={e => e.currentTarget.blur()}
+                            />
                         )}
                         <div className="text-xs text-gray-500 mt-1">
                           Parsed: {(() => {
@@ -712,17 +712,17 @@ export default function ProductForm({ onClose, onSave, initialData }: ProductFor
                             <span className="text-gray-700 text-sm">{selectedUnit.subunit_name}</span>
                           </div>
                         ) : (
-                          <input
-                            className={`w-full border rounded px-2 py-1 text-gray-900 placeholder-gray-500 ${
-                              validationErrors.variations?.[idx]?.min_stock ? 'border-red-500' : ''
-                            }`}
+                            <input
+                              className={`w-full border rounded px-2 py-1 text-gray-900 placeholder-gray-500 ${
+                                validationErrors.variations?.[idx]?.min_stock ? 'border-red-500' : ''
+                              }`}
                             type="number"
                             min="0"
                             placeholder="Enter min stock"
-                            value={v._minStockInput ?? ''}
+                              value={v._minStockInput ?? ''}
                             onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleVariationChange(idx, '_minStockInput', e.target.value)}
-                            onWheel={e => e.currentTarget.blur()}
-                          />
+                              onWheel={e => e.currentTarget.blur()}
+                            />
                         )}
                         <div className="text-xs text-gray-500 mt-1">
                           Parsed: {(() => {
@@ -789,7 +789,7 @@ export default function ProductForm({ onClose, onSave, initialData }: ProductFor
                         </button>
                       </div>
                     </div>
-                  </div>
+                    </div>
                 );
               })()}
               
@@ -813,7 +813,7 @@ export default function ProductForm({ onClose, onSave, initialData }: ProductFor
                       <div className="text-xs text-gray-700">
                         {unit?.name || ''} | {t('inventory.purchasePrice', 'Buy')}: {formatCurrency(v.purchase_price)} | {t('inventory.sellingPrice', 'Sell')}: {formatCurrency(v.selling_price)}<br/>
                         {t('inventory.currentStock', 'Current Stock')}: {displayStock} | {t('inventory.minStock', 'Min Stock')}: {displayMinStock}
-                      </div>
+                    </div>
                     </div>
                     <div className="flex flex-col ml-2 gap-2 items-end">
                       <button

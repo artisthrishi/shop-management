@@ -1,7 +1,7 @@
 'use client';
 
 import { useTranslation } from 'react-i18next';
-import { useState, useContext, useEffect, useMemo, useCallback } from 'react';
+import { useState, useContext, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { PlusIcon, MagnifyingGlassIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
 import ProductForm from '@/components/ProductForm';
@@ -68,169 +68,86 @@ export default function InventoryPage() {
     loadProducts();
   }, []);
 
-  // Check if any filters are active
-  const hasActiveFilters = useMemo(() => {
-    return stockFilter !== 'all' || stockSort !== 'none' || priceSort !== 'none' || searchQuery.trim() !== '';
-  }, [stockFilter, stockSort, priceSort, searchQuery]);
-
-  // Create variation-level data when filters are active
-  const createVariationLevelData = useCallback(() => {
-    const allVariations: EnrichedVariation[] = products.flatMap((product: Product) =>
-      (product.product_variations || []).map((v: ProductVariation) => ({
-        ...v,
-        productName: product.name || '',
-        productBrand: product.brand || '',
-        productCategory: product.category || '',
-      }))
-    );
-
-    return allVariations
-      .filter((v: EnrichedVariation) => {
-        const query = searchQuery.toLowerCase().trim();
-        if (!query) return true;
-        
-        const productMatch = v.productName.toLowerCase().includes(query);
-        const variationMatch = v.name.toLowerCase().includes(query);
-        if (!productMatch && !variationMatch) return false;
-
-        // Apply stock level filter
-        switch (stockFilter) {
-          case 'low': return v.current_stock <= v.min_stock;
-          case 'out': return v.current_stock === 0;
-          case 'in': return v.current_stock > 0;
-          default: return true;
-        }
-      })
-      .sort((a: EnrichedVariation, b: EnrichedVariation) => {
-        // Apply stock sort
-        if (stockSort === 'low-high') return a.current_stock - b.current_stock;
-        if (stockSort === 'high-low') return b.current_stock - a.current_stock;
-        
-        // Apply price sort
-        if (priceSort === 'low-high') return a.selling_price - b.selling_price;
-        if (priceSort === 'high-low') return b.selling_price - a.selling_price;
-        
-        return 0;
-      });
-  }, [products, searchQuery, stockFilter, stockSort, priceSort]);
-
-  // Group variations by product for display
-  const groupVariationsByProduct = useCallback((variations: EnrichedVariation[]) => {
-    const grouped: { [key: number]: { id: number; name: string; brand: string; category: string; location: string; variations: EnrichedVariation[] } } = {};
-    variations.forEach((v: EnrichedVariation) => {
-      if (!grouped[v.product_id]) {
-        grouped[v.product_id] = {
-          id: v.product_id,
-          name: v.productName,
-          brand: v.productBrand,
-          category: v.productCategory,
-          location: v.location, // This is the variation's location
-          variations: []
-        };
+  // Unified filter and sort logic
+  const filteredAndSortedProducts = useMemo(() => {
+    // First, filter products by search query and stock filter
+    const filteredProducts = products.filter((product) => {
+      const query = searchQuery.toLowerCase().trim();
+      
+      // Search filter: match product name OR any variation name
+      if (query) {
+        const productNameMatch = product.name?.toLowerCase().includes(query);
+        const variationNameMatch = (product.product_variations || []).some(
+          (v) => v.name?.toLowerCase().includes(query)
+        );
+        if (!productNameMatch && !variationNameMatch) return false;
       }
-      grouped[v.product_id].variations.push(v);
-    });
-    return Object.values(grouped);
-  }, []);
 
-  // Original filtering logic for when no filters are active
-  const filteredProducts = useMemo(() => {
-    return products
-      .filter((product: Product) => {
-        const query = searchQuery.toLowerCase().trim();
-        if (!query) return true;
-        
-        const productMatch = product.name.toLowerCase().includes(query);
-        const variationMatch = (product.product_variations || []).some((v: ProductVariation) => v.name.toLowerCase().includes(query));
-        const textMatch = productMatch || variationMatch;
-        
-        if (!textMatch) return false;
-        
-        // Apply stock level filter
-        switch (stockFilter) {
-          case 'low':
-            return (product.product_variations || []).some((v: ProductVariation) => v.current_stock <= v.min_stock);
-          case 'out':
-            return (product.product_variations || []).some((v: ProductVariation) => v.current_stock === 0);
-          case 'in':
-            return (product.product_variations || []).some((v: ProductVariation) => v.current_stock > 0);
-          default:
-            return true;
-        }
-      })
-      .map((product: Product) => ({
-        ...product,
-        product_variations: [...(product.product_variations || [])].sort((a: ProductVariation, b: ProductVariation) => {
-          // Apply stock sort
+      // Stock filter: show product if ANY variation matches the criteria
+      if (stockFilter !== 'all') {
+        const hasMatchingVariation = (product.product_variations || []).some((v) => {
+          switch (stockFilter) {
+            case 'low': return v.current_stock <= v.min_stock;
+            case 'out': return v.current_stock === 0;
+            case 'in': return v.current_stock > 0;
+            default: return true;
+          }
+        });
+        if (!hasMatchingVariation) return false;
+      }
+
+      return true;
+    });
+
+    // Then, sort products and their variations
+    return filteredProducts
+      .map((product) => {
+        // Sort variations within each product
+        const originalVariations = [...(product.product_variations || [])];
+        const sortedVariations = originalVariations.sort((a: ProductVariation, b: ProductVariation) => {
           if (stockSort === 'low-high') return a.current_stock - b.current_stock;
           if (stockSort === 'high-low') return b.current_stock - a.current_stock;
-          
-          // Apply price sort
           if (priceSort === 'low-high') return a.selling_price - b.selling_price;
           if (priceSort === 'high-low') return b.selling_price - a.selling_price;
-          
           return 0;
-        })
-      }))
+        });
+
+        return {
+          ...product,
+          product_variations: sortedVariations,
+        };
+      })
       .sort((a: Product, b: Product) => {
-        // Sort products by their best matching variation's values
-        if (((a.product_variations || []).length) === 0 || ((b.product_variations || []).length) === 0) return 0;
+        // Sort products based on their representative variation (first variation after internal sorting)
+        if ((a.product_variations || []).length === 0 || (b.product_variations || []).length === 0) return 0;
         
-        // Apply stock sort - use the variation with lowest/highest stock
+        const aRep = a.product_variations![0];
+        const bRep = b.product_variations![0];
+        
+        let comparison = 0;
         if (stockSort === 'low-high') {
-          const aMinStock = Math.min(...(a.product_variations || []).map((v: ProductVariation) => v.current_stock));
-          const bMinStock = Math.min(...(b.product_variations || []).map((v: ProductVariation) => v.current_stock));
-          return aMinStock - bMinStock;
+          comparison = aRep.current_stock - bRep.current_stock;
         }
         if (stockSort === 'high-low') {
-          const aMaxStock = Math.max(...(a.product_variations || []).map((v: ProductVariation) => v.current_stock));
-          const bMaxStock = Math.max(...(b.product_variations || []).map((v: ProductVariation) => v.current_stock));
-          return bMaxStock - aMaxStock;
+          comparison = bRep.current_stock - aRep.current_stock;
         }
-        
-        // Apply price sort - use the variation with highest/lowest price
         if (priceSort === 'low-high') {
-          const aMinPrice = Math.min(...(a.product_variations || []).map((v: ProductVariation) => v.selling_price));
-          const bMinPrice = Math.min(...(b.product_variations || []).map((v: ProductVariation) => v.selling_price));
-          return aMinPrice - bMinPrice;
+          comparison = aRep.selling_price - bRep.selling_price;
         }
         if (priceSort === 'high-low') {
-          const aMaxPrice = Math.max(...(a.product_variations || []).map((v: ProductVariation) => v.selling_price));
-          const bMaxPrice = Math.max(...(b.product_variations || []).map((v: ProductVariation) => v.selling_price));
-          return bMaxPrice - aMaxPrice;
+          comparison = bRep.selling_price - aRep.selling_price;
         }
         
-        return 0;
+        return comparison;
       });
   }, [products, searchQuery, stockFilter, stockSort, priceSort]);
-
-  // Get display data based on filter state
-  const displayData = useMemo(() => {
-    return hasActiveFilters 
-      ? groupVariationsByProduct(createVariationLevelData())
-      : filteredProducts;
-  }, [hasActiveFilters, groupVariationsByProduct, createVariationLevelData, filteredProducts]);
 
   // Helper type guard
   function isGroupedProduct(obj: unknown): obj is { id: number; name: string; brand: string; category: string; location: string; variations: EnrichedVariation[] } {
     return typeof obj === 'object' && obj !== null && Array.isArray((obj as { variations?: unknown }).variations);
   }
 
-  const totalValue = displayData.reduce((sum: number, product: Product | { id: number; name: string; brand: string; category: string; location: string; variations: EnrichedVariation[] }) => {
-    if (isGroupedProduct(product)) {
-      return sum + product.variations.reduce((vSum: number, v: EnrichedVariation) => vSum + v.current_stock * v.selling_price, 0);
-    } else {
-      return sum + (product.product_variations || []).reduce((vSum: number, v: ProductVariation) => vSum + v.current_stock * v.selling_price, 0);
-    }
-  }, 0);
 
-  const lowStockCount = displayData.reduce((count: number, product: Product | { id: number; name: string; brand: string; category: string; location: string; variations: EnrichedVariation[] }) => {
-    if (isGroupedProduct(product)) {
-      return count + product.variations.filter((v: EnrichedVariation) => v.current_stock <= v.min_stock).length;
-    } else {
-      return count + (product.product_variations || []).filter((v: ProductVariation) => v.current_stock <= v.min_stock).length;
-    }
-  }, 0);
 
   const handleSaveProduct = (product: { name: string; brand: string; category: string; created_by: string | null }) => {
     setShowProductForm(false);
@@ -326,64 +243,60 @@ export default function InventoryPage() {
         </button>
       </div>
 
-      {/* Top Cards */}
-      <div className="flex gap-4 mb-2">
-        <div className="flex-1 bg-white rounded-lg shadow p-4 flex flex-col items-center">
-          <span className="text-sm text-gray-500">{t('inventory.totalValue', 'Total Value')}</span>
-          <span className="text-xl font-bold text-green-600">₹{totalValue.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
-        </div>
-        <div className="flex-1 bg-white rounded-lg shadow p-4 flex flex-col items-center">
-          <span className="text-sm text-gray-500">{t('inventory.lowStockAlert', 'Low Stock')}</span>
-          <span className="text-xl font-bold text-red-600">{lowStockCount}</span>
-        </div>
-      </div>
-
       {/* Search Bar */}
       <div className="relative">
-        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-          <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" />
-        </div>
+        <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
         <input
           type="text"
-          placeholder={t('inventory.searchPlaceholder', 'Search products...')}
+          placeholder={t('inventory.search', 'Search products...')}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg leading-5 bg-white text-gray-900 placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+          className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
         />
       </div>
 
       {/* Filters */}
-      <div className="flex items-center gap-2 -mt-2">
-        <span className="text-sm font-medium text-gray-700">{t('inventory.filter', 'Filter')}:</span>
-        
-        {/* Debug Info - Remove this later */}
-        <span className="text-xs text-gray-500 ml-2">
-          (Stock: {stockFilter}, Sort: {stockSort}, Price: {priceSort})
-        </span>
-        
-        {/* Stock Filter & Sort Dropdown */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm text-gray-600 whitespace-nowrap">Filter:</span>
+
+        {/* Stock Filter Dropdown */}
         <select
-          value={`${stockFilter}-${stockSort}`}
-          onChange={(e) => {
-            const [filter, sort] = e.target.value.split('-');
-            setStockFilter(filter);
-            setStockSort(sort);
-          }}
-          className="px-2 py-1 text-sm text-gray-700 border border-gray-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 min-w-0"
+          value={stockFilter}
+          onChange={(e) => setStockFilter(e.target.value)}
+          className="w-16 sm:w-20 px-2 py-1 text-xs sm:text-sm text-gray-700 border border-gray-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
         >
-          <option value="all-none">{t('inventory.stock', 'Stock')}</option>
-          <option value="low-none">{t('inventory.low', 'Low')}</option>
-          <option value="out-none">{t('inventory.outOfStock', 'Out')}</option>
-          <option value="in-none">{t('inventory.inStock', 'In')}</option>
-          <option value="all-low-high">{t('inventory.lowToHigh', 'Low→High')}</option>
-          <option value="all-high-low">{t('inventory.highToLow', 'High→Low')}</option>
+          <option value="all">{t('inventory.stock', 'Stock')}</option>
+          <option value="low">{t('inventory.lowStock', 'Low')}</option>
+          <option value="out">{t('inventory.outOfStock', 'Out')}</option>
+          <option value="in">{t('inventory.inStock', 'In')}</option>
+        </select>
+
+        {/* Stock Sort Dropdown */}
+        <select
+          value={stockSort}
+          onChange={(e) => {
+            setStockSort(e.target.value);
+            if (e.target.value !== 'none') {
+              setPriceSort('none');
+            }
+          }}
+          className="w-16 sm:w-20 px-2 py-1 text-xs sm:text-sm text-gray-700 border border-gray-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+        >
+          <option value="none">{t('inventory.sort', 'Sort')}</option>
+          <option value="low-high">{t('inventory.lowToHigh', 'Low→High')}</option>
+          <option value="high-low">{t('inventory.highToLow', 'High→Low')}</option>
         </select>
 
         {/* Price Sort Dropdown */}
         <select
           value={priceSort}
-          onChange={(e) => setPriceSort(e.target.value)}
-          className="px-2 py-1 text-sm text-gray-700 border border-gray-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 min-w-0"
+          onChange={(e) => {
+            setPriceSort(e.target.value);
+            if (e.target.value !== 'none') {
+              setStockSort('none');
+            }
+          }}
+          className="w-16 sm:w-20 px-2 py-1 text-xs sm:text-sm text-gray-700 border border-gray-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
         >
           <option value="none">{t('inventory.price', 'Price')}</option>
           <option value="low-high">{t('inventory.lowToHigh', 'Low→High')}</option>
@@ -409,7 +322,7 @@ export default function InventoryPage() {
       {/* Products List */}
       {!loading && !error && (
         <div className="grid grid-cols-1 gap-4">
-          {displayData.map((product) => (
+          {filteredAndSortedProducts.map((product) => (
             <div
               key={product.id}
               className="bg-white rounded-lg shadow cursor-pointer hover:shadow-lg transition-shadow"
@@ -527,7 +440,7 @@ export default function InventoryPage() {
               </div>
             </div>
           ))}
-          {displayData.length === 0 && (
+          {filteredAndSortedProducts.length === 0 && (
             <div className="text-center text-gray-500 py-8">
               {t('inventory.noProducts', 'No products found')}
             </div>

@@ -359,14 +359,26 @@ export default function ProductDetailsPage() {
 
   return (
     <div className="max-w-lg mx-auto p-4 space-y-6 relative">
-      <button
-        className="absolute top-2 right-2 p-2 rounded hover:bg-gray-100"
-        onClick={() => router.push('/inventory')}
-        title="Close"
-      >
-        <XMarkIcon className="w-6 h-6 text-gray-500" />
-      </button>
-      <div className="text-2xl font-bold text-gray-900 mb-2">Product Details</div>
+      {/* Header with title, save button, and close button */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="text-2xl font-bold text-gray-900">Product Details</div>
+        <div className="flex items-center gap-3">
+          <button
+            className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            onClick={handleSaveAll}
+            disabled={saveLoading}
+          >
+            {saveLoading ? 'Saving...' : 'Save Changes'}
+          </button>
+          <button
+            className="p-2 rounded hover:bg-gray-100"
+            onClick={() => router.push('/inventory')}
+            title="Close"
+          >
+            <XMarkIcon className="w-6 h-6 text-gray-500" />
+          </button>
+        </div>
+      </div>
       <div className="bg-white rounded-lg shadow p-4 space-y-3">
         <div className="font-semibold text-lg text-gray-900">{product.name}</div>
         <div className="text-sm text-gray-500">Brand: {product.brand}</div>
@@ -923,13 +935,6 @@ export default function ProductDetailsPage() {
             </div>
           </div>
         )}
-        <button
-          className="w-full mt-6 px-8 py-3 bg-blue-600 text-white font-bold rounded-lg shadow-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 text-lg"
-          onClick={handleSaveAll}
-          disabled={saveLoading}
-        >
-          {saveLoading ? 'Saving...' : 'Save Changes'}
-        </button>
       </div>
     </div>
   );

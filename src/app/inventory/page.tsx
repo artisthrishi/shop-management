@@ -16,6 +16,7 @@ type EnrichedVariation = ProductVariation & {
   productName: string;
   productBrand: string;
   productCategory: string;
+  units?: Unit;
 };
 
 export default function InventoryPage() {
@@ -51,28 +52,20 @@ export default function InventoryPage() {
   }, [showProductForm, setModalOpen]);
 
   const loadProducts = async () => {
-    setLoading(true);
-    setError(null);
     try {
-      const [data, unitsData] = await Promise.all([
+      setLoading(true);
+      const [productsData, unitsData] = await Promise.all([
         getAllProductsWithVariations(),
-        getUnits()
+        getUnits(),
       ]);
       
-      const processedData = data.map((p) => ({
-        ...p,
-        product_variations: (p.product_variations || []).map((v: ProductVariation) => ({
-          ...v,
-          current_stock: v.current_stock || 0,
-          min_stock: v.min_stock || 0,
-          selling_price: v.selling_price || 0,
-        })),
-      }));
-      setProducts(processedData);
+      console.log('Products data:', productsData); // Debug log
+      
+      setProducts(productsData);
       setUnits(unitsData);
-    } catch (e) {
-      const errorMessage = e instanceof Error ? e.message : 'Error loading products';
-      setError(errorMessage);
+    } catch (error) {
+      console.error('Error loading products:', error);
+      toast.error('Failed to load products');
     } finally {
       setLoading(false);
     }
@@ -596,14 +589,14 @@ export default function InventoryPage() {
                             <span className={`text-sm font-medium ${
                               isLowStock ? 'text-red-600' : 'text-green-600'
                             }`}>
-                              {v.current_stock} {v.unit || ''}
+                              {v.current_stock} {v.units?.name || ''}
                             </span>
                           </div>
 
                           {/* Min Stock */}
                           <div className="col-span-2 text-center">
                             <span className="text-sm text-gray-600">
-                              {v.min_stock} {v.unit || ''}
+                              {v.min_stock}
                             </span>
                           </div>
 
@@ -668,14 +661,14 @@ export default function InventoryPage() {
                             <span className={`text-sm font-medium ${
                               isLowStock ? 'text-red-600' : 'text-green-600'
                             }`}>
-                              {v.current_stock} {v.unit || ''}
+                              {v.current_stock} {v.units?.name || ''}
                             </span>
                           </div>
 
                           {/* Min Stock */}
                           <div className="col-span-2 text-center">
                             <span className="text-sm text-gray-600">
-                              {v.min_stock} {v.unit || ''}
+                              {v.min_stock}
                             </span>
                           </div>
 

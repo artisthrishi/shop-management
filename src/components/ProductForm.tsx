@@ -474,23 +474,33 @@ export default function ProductForm({ onClose, onSave, initialData }: ProductFor
         </div>
       )}
       <div className="bg-white rounded-lg shadow-lg w-full max-w-lg mx-auto my-8">
-        {/* Remove the Dynamic Header and close (X) button - no header at the top */}
-        {/* (No header or close button here) */}
-        <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-lg w-full max-w-md p-6 relative max-h-[90vh] overflow-y-auto pb-32">
-          <button
-            type="button"
-            onClick={() => {
-              if (hasUnsaved) {
-                setConfirmClose(true);
-                return;
-              }
-              onClose();
-            }}
-            className="absolute top-3 right-3 text-gray-400 hover:text-gray-600"
-          >
-            <XMarkIcon className="w-6 h-6" />
-          </button>
-          <h2 className="text-xl font-bold mb-4 text-gray-900">{t('inventory.addProduct', 'Add Product')}</h2>
+        {/* Header with close button and save button */}
+        <div className="flex items-center justify-between p-4 border-b border-gray-200">
+          <h2 className="text-xl font-bold text-gray-900">{t('inventory.addProduct', 'Add Product')}</h2>
+          <div className="flex items-center gap-3">
+            <button
+              type="submit"
+              form="product-form"
+              className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            >
+              Save Product
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (hasUnsaved) {
+                  setConfirmClose(true);
+                  return;
+                }
+                onClose();
+              }}
+              className="text-gray-400 hover:text-gray-600"
+            >
+              <XMarkIcon className="w-6 h-6" />
+            </button>
+          </div>
+        </div>
+        <form id="product-form" onSubmit={handleSubmit} className="bg-white rounded-lg w-full max-w-md p-6 relative max-h-[90vh] overflow-y-auto pb-32">
           <div className="space-y-3">
             <div>
               <input
@@ -789,7 +799,7 @@ export default function ProductForm({ onClose, onSave, initialData }: ProductFor
                         </button>
                       </div>
                     </div>
-                    </div>
+                  </div>
                 );
               })()}
               
@@ -840,15 +850,6 @@ export default function ProductForm({ onClose, onSave, initialData }: ProductFor
               })}
               {/* Only render the last variation as editable fields when not adding a new variation */}
             </div>
-          </div>
-          <div className="w-full flex justify-center mt-8 mb-4">
-            <button
-              type="submit"
-              className="px-8 py-3 bg-blue-600 text-white font-bold rounded-lg shadow-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 text-lg w-full"
-              style={{ maxWidth: '24rem' }}
-            >
-              Save Product
-            </button>
           </div>
         </form>
       </div>

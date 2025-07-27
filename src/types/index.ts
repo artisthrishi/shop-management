@@ -74,6 +74,7 @@ export interface ProductVariation {
   location: string;
   created_by: string | null;
   unit?: string; // for UI display
+  units?: Unit; // joined unit data
 }
 
 export interface Sale {

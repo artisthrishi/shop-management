@@ -240,7 +240,7 @@ export async function createUser(user: Omit<User, 'id' | 'created_at'>) {
 export async function getAllProductsWithVariations() {
   const { data, error } = await supabase
     .from('products')
-    .select(`*, product_variations(*)`)
+    .select(`*, product_variations(*, units(name))`)
     .order('name');
   if (error) throw error;
   return data || [];

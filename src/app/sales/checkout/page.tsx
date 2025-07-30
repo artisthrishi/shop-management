@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeftIcon, CreditCardIcon, BanknotesIcon } from '@heroicons/react/24/outline';
 import { formatCurrency, calculateCartTotal, calculateCartProfit } from '@/lib/utils';
 import { getShopSettingsWithDefaults, createSaleWithItems, validateStockAvailability } from '@/lib/database';
+import { storeSaleForSync, canCreateOfflineSale, validateOfflineSale } from '@/lib/offlineSalesManager';
+import { useConnectionStatus } from '@/hooks/useConnectionStatus';
 import type { CartItem } from '@/types';
 import '../../../lib/i18n';
 
@@ -19,6 +21,7 @@ interface CustomerInfo {
 export default function CheckoutPage() {
   const { t } = useTranslation();
   const router = useRouter();
+  const { isOnline } = useConnectionStatus();
   
   // State
   const [shopName, setShopName] = useState('');
@@ -119,7 +122,7 @@ export default function CheckoutPage() {
     
     setLoading(true);
     try {
-      // Create sale with items
+      // Create sale data
       const saleData = {
         total_amount: total,
         estimated_profit: profit,
@@ -128,20 +131,51 @@ export default function CheckoutPage() {
         payment_method: paymentMethod
       };
 
-      const { sale, saleItems } = await createSaleWithItems(saleData, cartItems);
-      
-      // Clear cart
-      localStorage.removeItem('cartItems');
-      
-      // Show success message
-      setShowSuccessMessage(true);
-      
-      // Hide success message after 3 seconds
-      setTimeout(() => {
-        setShowSuccessMessage(false);
-        // Redirect to invoice page
-        router.push(`/sales/invoice/${sale.id}`);
-      }, 3000);
+      // Validate offline sale data
+      const validation = validateOfflineSale(saleData, cartItems);
+      if (!validation.valid) {
+        alert('Invalid sale data: ' + validation.errors.join(', '));
+        return;
+      }
+
+      if (isOnline) {
+        // Online sale - create in database
+        const { sale, saleItems } = await createSaleWithItems(saleData, cartItems);
+        
+        // Clear cart
+        localStorage.removeItem('cartItems');
+        
+        // Show success message
+        setShowSuccessMessage(true);
+        
+        // Hide success message after 3 seconds
+        setTimeout(() => {
+          setShowSuccessMessage(false);
+          // Redirect to invoice page
+          router.push(`/sales/invoice/${sale.id}`);
+        }, 3000);
+      } else {
+        // Offline sale - store for sync
+        if (!canCreateOfflineSale()) {
+          alert('Cannot create offline sale. Please check your connection and try again.');
+          return;
+        }
+
+        const offlineSaleId = await storeSaleForSync(saleData, cartItems);
+        
+        // Clear cart
+        localStorage.removeItem('cartItems');
+        
+        // Show offline success message
+        setShowSuccessMessage(true);
+        
+        // Hide success message after 3 seconds
+        setTimeout(() => {
+          setShowSuccessMessage(false);
+          // Redirect back to sales page
+          router.push('/sales/new');
+        }, 3000);
+      }
     } catch (error) {
       console.error('Error completing sale:', error);
       
@@ -376,13 +410,22 @@ export default function CheckoutPage() {
           <div className="bg-white p-8 rounded-lg max-w-md w-full mx-4 text-center">
             <div className="text-6xl mb-4">✅</div>
             <h2 className="text-xl font-semibold text-gray-900 mb-2">
-              {t('checkout.saleCompleted', 'Sale Completed Successfully!')}
+              {isOnline ? 
+                t('checkout.saleCompleted', 'Sale Completed Successfully!') :
+                t('offline.saleStored', 'Sale Stored for Sync!')
+              }
             </h2>
             <p className="text-gray-600 mb-4">
-              {t('checkout.inventoryUpdated', 'Inventory has been updated automatically.')}
+              {isOnline ? 
+                t('checkout.inventoryUpdated', 'Inventory has been updated automatically.') :
+                t('offline.saleWillSync', 'Sale will be synced when you are online.')
+              }
             </p>
             <div className="text-sm text-gray-500">
-              {t('checkout.redirecting', 'Redirecting to invoice...')}
+              {isOnline ? 
+                t('checkout.redirecting', 'Redirecting to invoice...') :
+                t('offline.redirecting', 'Redirecting to sales...')
+              }
             </div>
           </div>
         </div>

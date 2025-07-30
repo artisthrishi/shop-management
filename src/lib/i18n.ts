@@ -54,27 +54,30 @@ const resources = {
   },
 };
 
-i18n
-  .use(LanguageDetector)
-  .use(initReactI18next)
-  .init({
-    resources,
-    fallbackLng: 'en',
-    debug: process.env.NODE_ENV === 'development',
+// Only initialize if not already initialized
+if (!i18n.isInitialized) {
+  i18n
+    .use(LanguageDetector)
+    .use(initReactI18next)
+    .init({
+      resources,
+      fallbackLng: 'en',
+      debug: process.env.NODE_ENV === 'development',
 
-    detection: {
-      order: ['localStorage', 'navigator', 'htmlTag'],
-      caches: ['localStorage'],
-      lookupLocalStorage: 'i18nextLng',
-    },
+      detection: {
+        order: ['localStorage', 'navigator', 'htmlTag'],
+        caches: ['localStorage'],
+        lookupLocalStorage: 'i18nextLng',
+      },
 
-    interpolation: {
-      escapeValue: false, // React already escapes values
-    },
+      interpolation: {
+        escapeValue: false, // React already escapes values
+      },
 
-    react: {
-      useSuspense: false,
-    },
-  });
+      react: {
+        useSuspense: false,
+      },
+    });
+}
 
 export default i18n; 

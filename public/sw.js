@@ -1,1 +1,212 @@
-if(!self.define){let e,s={};const a=(a,n)=>(a=new URL(a+".js",n).href,s[a]||new Promise(s=>{if("document"in self){const e=document.createElement("script");e.src=a,e.onload=s,document.head.appendChild(e)}else e=a,importScripts(a),s()}).then(()=>{let e=s[a];if(!e)throw new Error(`Module ${a} didn’t register its module`);return e}));self.define=(n,t)=>{const c=e||("document"in self?document.currentScript.src:"")||location.href;if(s[c])return;let i={};const r=e=>a(e,c),f={module:{uri:c},exports:i,require:r};s[c]=Promise.all(n.map(e=>f[e]||r(e))).then(e=>(t(...e),i))}}define(["./workbox-4754cb34"],function(e){"use strict";importScripts(),self.skipWaiting(),e.clientsClaim(),e.precacheAndRoute([{url:"/_next/app-build-manifest.json",revision:"8e1f61bc06b0de94ec35cad5dc4f1e65"},{url:"/_next/static/TRzL3PCEfyJ_FztY8rh8x/_buildManifest.js",revision:"e05c3149a56422f658ff30de9ba34c49"},{url:"/_next/static/TRzL3PCEfyJ_FztY8rh8x/_ssgManifest.js",revision:"b6652df95db52feb4daf4eca35380933"},{url:"/_next/static/chunks/139-ebd9d749b6503625.js",revision:"ebd9d749b6503625"},{url:"/_next/static/chunks/218-92926fba713c593f.js",revision:"92926fba713c593f"},{url:"/_next/static/chunks/341.716d46e6e5cb6bdc.js",revision:"716d46e6e5cb6bdc"},{url:"/_next/static/chunks/472.a3826d29d6854395.js",revision:"a3826d29d6854395"},{url:"/_next/static/chunks/4bd1b696-cf72ae8a39fa05aa.js",revision:"cf72ae8a39fa05aa"},{url:"/_next/static/chunks/6-61c42cea9ef710bc.js",revision:"61c42cea9ef710bc"},{url:"/_next/static/chunks/647-dc83b5f1ed6472a8.js",revision:"dc83b5f1ed6472a8"},{url:"/_next/static/chunks/964-eda38e26c0391a47.js",revision:"eda38e26c0391a47"},{url:"/_next/static/chunks/app/_not-found/page-33e809f26a7de114.js",revision:"33e809f26a7de114"},{url:"/_next/static/chunks/app/inventory/%5Bid%5D/page-2fb4f421ce34f3c2.js",revision:"2fb4f421ce34f3c2"},{url:"/_next/static/chunks/app/inventory/page-920fd00b92e5802f.js",revision:"920fd00b92e5802f"},{url:"/_next/static/chunks/app/layout-eae35816111288a3.js",revision:"eae35816111288a3"},{url:"/_next/static/chunks/app/login/page-89349f5ae1cd54ab.js",revision:"89349f5ae1cd54ab"},{url:"/_next/static/chunks/app/page-aef6555ba0d0102d.js",revision:"aef6555ba0d0102d"},{url:"/_next/static/chunks/app/reports/page-6765f0eac1205885.js",revision:"6765f0eac1205885"},{url:"/_next/static/chunks/app/settings/page-ff990b3382e12c5d.js",revision:"ff990b3382e12c5d"},{url:"/_next/static/chunks/framework-7c95b8e5103c9e90.js",revision:"7c95b8e5103c9e90"},{url:"/_next/static/chunks/main-403fd0b1a4319cb4.js",revision:"403fd0b1a4319cb4"},{url:"/_next/static/chunks/main-app-e5bd3ff8a50260b8.js",revision:"e5bd3ff8a50260b8"},{url:"/_next/static/chunks/pages/_app-663ec5428c344dae.js",revision:"663ec5428c344dae"},{url:"/_next/static/chunks/pages/_error-544778206352ce59.js",revision:"544778206352ce59"},{url:"/_next/static/chunks/polyfills-42372ed130431b0a.js",revision:"846118c33b2c0e922d7b3a7676f81f6f"},{url:"/_next/static/chunks/webpack-b47fd1548851b972.js",revision:"b47fd1548851b972"},{url:"/_next/static/css/d7384753b0967701.css",revision:"d7384753b0967701"},{url:"/_next/static/media/569ce4b8f30dc480-s.p.woff2",revision:"ef6cefb32024deac234e82f932a95cbd"},{url:"/_next/static/media/747892c23ea88013-s.woff2",revision:"a0761690ccf4441ace5cec893b82d4ab"},{url:"/_next/static/media/8d697b304b401681-s.woff2",revision:"cc728f6c0adb04da0dfcb0fc436a8ae5"},{url:"/_next/static/media/93f479601ee12b01-s.p.woff2",revision:"da83d5f06d825c5ae65b7cca706cb312"},{url:"/_next/static/media/9610d9e46709d722-s.woff2",revision:"7b7c0ef93df188a852344fc272fc096b"},{url:"/_next/static/media/ba015fad6dcf6784-s.woff2",revision:"8ea4f719af3312a055caf09f34c89a77"},{url:"/file.svg",revision:"d09f95206c3fa0bb9bd9fefabfd0ea71"},{url:"/globe.svg",revision:"2aaafa6a49b6563925fe440891e32717"},{url:"/manifest.json",revision:"72eb9cca4869b22d61c028df1021584b"},{url:"/next.svg",revision:"8e061864f388b47f33a1c3780831193e"},{url:"/vercel.svg",revision:"c0af2f507b369b085b35ef4bbe3bcf1e"},{url:"/window.svg",revision:"a2760511c65806022ad20adf74370ff3"}],{ignoreURLParametersMatching:[]}),e.cleanupOutdatedCaches(),e.registerRoute("/",new e.NetworkFirst({cacheName:"start-url",plugins:[{cacheWillUpdate:async({request:e,response:s,event:a,state:n})=>s&&"opaqueredirect"===s.type?new Response(s.body,{status:200,statusText:"OK",headers:s.headers}):s}]}),"GET"),e.registerRoute(/^https:\/\/fonts\.(?:gstatic)\.com\/.*/i,new e.CacheFirst({cacheName:"google-fonts-webfonts",plugins:[new e.ExpirationPlugin({maxEntries:4,maxAgeSeconds:31536e3})]}),"GET"),e.registerRoute(/^https:\/\/fonts\.(?:googleapis)\.com\/.*/i,new e.StaleWhileRevalidate({cacheName:"google-fonts-stylesheets",plugins:[new e.ExpirationPlugin({maxEntries:4,maxAgeSeconds:604800})]}),"GET"),e.registerRoute(/\.(?:eot|otf|ttc|ttf|woff|woff2|font.css)$/i,new e.StaleWhileRevalidate({cacheName:"static-font-assets",plugins:[new e.ExpirationPlugin({maxEntries:4,maxAgeSeconds:604800})]}),"GET"),e.registerRoute(/\.(?:jpg|jpeg|gif|png|svg|ico|webp)$/i,new e.StaleWhileRevalidate({cacheName:"static-image-assets",plugins:[new e.ExpirationPlugin({maxEntries:64,maxAgeSeconds:86400})]}),"GET"),e.registerRoute(/\/_next\/image\?url=.+$/i,new e.StaleWhileRevalidate({cacheName:"next-image",plugins:[new e.ExpirationPlugin({maxEntries:64,maxAgeSeconds:86400})]}),"GET"),e.registerRoute(/\.(?:mp3|wav|ogg)$/i,new e.CacheFirst({cacheName:"static-audio-assets",plugins:[new e.RangeRequestsPlugin,new e.ExpirationPlugin({maxEntries:32,maxAgeSeconds:86400})]}),"GET"),e.registerRoute(/\.(?:mp4)$/i,new e.CacheFirst({cacheName:"static-video-assets",plugins:[new e.RangeRequestsPlugin,new e.ExpirationPlugin({maxEntries:32,maxAgeSeconds:86400})]}),"GET"),e.registerRoute(/\.(?:js)$/i,new e.StaleWhileRevalidate({cacheName:"static-js-assets",plugins:[new e.ExpirationPlugin({maxEntries:32,maxAgeSeconds:86400})]}),"GET"),e.registerRoute(/\.(?:css|less)$/i,new e.StaleWhileRevalidate({cacheName:"static-style-assets",plugins:[new e.ExpirationPlugin({maxEntries:32,maxAgeSeconds:86400})]}),"GET"),e.registerRoute(/\/_next\/data\/.+\/.+\.json$/i,new e.StaleWhileRevalidate({cacheName:"next-data",plugins:[new e.ExpirationPlugin({maxEntries:32,maxAgeSeconds:86400})]}),"GET"),e.registerRoute(/\.(?:json|xml|csv)$/i,new e.NetworkFirst({cacheName:"static-data-assets",plugins:[new e.ExpirationPlugin({maxEntries:32,maxAgeSeconds:86400})]}),"GET"),e.registerRoute(({url:e})=>{if(!(self.origin===e.origin))return!1;const s=e.pathname;return!s.startsWith("/api/auth/")&&!!s.startsWith("/api/")},new e.NetworkFirst({cacheName:"apis",networkTimeoutSeconds:10,plugins:[new e.ExpirationPlugin({maxEntries:16,maxAgeSeconds:86400})]}),"GET"),e.registerRoute(({url:e})=>{if(!(self.origin===e.origin))return!1;return!e.pathname.startsWith("/api/")},new e.NetworkFirst({cacheName:"others",networkTimeoutSeconds:10,plugins:[new e.ExpirationPlugin({maxEntries:32,maxAgeSeconds:86400})]}),"GET"),e.registerRoute(({url:e})=>!(self.origin===e.origin),new e.NetworkFirst({cacheName:"cross-origin",networkTimeoutSeconds:10,plugins:[new e.ExpirationPlugin({maxEntries:32,maxAgeSeconds:3600})]}),"GET")});
+const CACHE_NAME = 'shop-manager-v1';
+const STATIC_CACHE = 'shop-manager-static-v1';
+const DYNAMIC_CACHE = 'shop-manager-dynamic-v1';
+
+// Files to cache immediately
+const STATIC_FILES = [
+  '/',
+  '/manifest.json',
+  '/offline.html',
+  '/static/css/',
+  '/static/js/',
+  '/_next/static/',
+  '/api/'
+];
+
+// Install event - cache static files
+self.addEventListener('install', (event) => {
+  console.log('[SW] Install event');
+  event.waitUntil(
+    caches.open(STATIC_CACHE)
+      .then((cache) => {
+        console.log('[SW] Caching static files');
+        return cache.addAll(STATIC_FILES);
+      })
+      .catch((error) => {
+        console.log('[SW] Cache install failed:', error);
+      })
+  );
+  self.skipWaiting();
+});
+
+// Activate event - clean up old caches
+self.addEventListener('activate', (event) => {
+  console.log('[SW] Activate event');
+  event.waitUntil(
+    caches.keys()
+      .then((cacheNames) => {
+        return Promise.all(
+          cacheNames.map((cacheName) => {
+            if (cacheName !== STATIC_CACHE && cacheName !== DYNAMIC_CACHE) {
+              console.log('[SW] Deleting old cache:', cacheName);
+              return caches.delete(cacheName);
+            }
+          })
+        );
+      })
+  );
+  self.clients.claim();
+});
+
+// Fetch event - serve from cache or network
+self.addEventListener('fetch', (event) => {
+  const { request } = event;
+  const url = new URL(request.url);
+
+  // Skip non-GET requests
+  if (request.method !== 'GET') {
+    return;
+  }
+
+  // Skip chrome-extension and other non-http requests
+  if (!url.protocol.startsWith('http')) {
+    return;
+  }
+
+  // Handle API requests differently
+  if (url.pathname.startsWith('/api/')) {
+    event.respondWith(handleApiRequest(request));
+    return;
+  }
+
+  // Handle static assets
+  event.respondWith(handleStaticRequest(request));
+});
+
+// Handle API requests with network-first strategy
+async function handleApiRequest(request) {
+  try {
+    // Try network first
+    const networkResponse = await fetch(request);
+    
+    // Clone the response for caching
+    const responseClone = networkResponse.clone();
+    
+    // Cache successful responses
+    if (networkResponse.ok) {
+      const cache = await caches.open(DYNAMIC_CACHE);
+      cache.put(request, responseClone);
+    }
+    
+    return networkResponse;
+  } catch (error) {
+    console.log('[SW] Network failed for API request:', request.url);
+    
+    // Try to serve from cache
+    const cachedResponse = await caches.match(request);
+    if (cachedResponse) {
+      console.log('[SW] Serving API from cache:', request.url);
+      return cachedResponse;
+    }
+    
+    // Return offline response for API requests
+    return new Response(
+      JSON.stringify({ 
+        error: 'Offline', 
+        message: 'No internet connection. Please check your connection and try again.' 
+      }),
+      {
+        status: 503,
+        statusText: 'Service Unavailable',
+        headers: { 'Content-Type': 'application/json' }
+      }
+    );
+  }
+}
+
+// Handle static requests with cache-first strategy
+async function handleStaticRequest(request) {
+  try {
+    // Try cache first
+    const cachedResponse = await caches.match(request);
+    if (cachedResponse) {
+      console.log('[SW] Serving from cache:', request.url);
+      return cachedResponse;
+    }
+    
+    // Try network
+    const networkResponse = await fetch(request);
+    
+    // Cache successful responses
+    if (networkResponse.ok) {
+      const responseClone = networkResponse.clone();
+      const cache = await caches.open(DYNAMIC_CACHE);
+      cache.put(request, responseClone);
+    }
+    
+    return networkResponse;
+  } catch (error) {
+    console.log('[SW] Network failed for static request:', request.url);
+    
+    // Return offline page for navigation requests
+    if (request.destination === 'document') {
+      const offlineResponse = await caches.match('/offline.html');
+      if (offlineResponse) {
+        return offlineResponse;
+      }
+    }
+    
+    // Return a simple offline message for other requests
+    return new Response('Offline', { status: 503 });
+  }
+}
+
+// Handle background sync for offline data
+self.addEventListener('sync', (event) => {
+  console.log('[SW] Background sync:', event.tag);
+  
+  if (event.tag === 'sync-sales') {
+    event.waitUntil(syncOfflineSales());
+  }
+});
+
+// Sync offline sales when connection is restored
+async function syncOfflineSales() {
+  try {
+    console.log('[SW] Syncing offline sales...');
+    
+    // Get offline sales from IndexedDB
+    const offlineSales = await getOfflineSales();
+    
+    if (offlineSales.length === 0) {
+      console.log('[SW] No offline sales to sync');
+      return;
+    }
+    
+    // Sync each sale
+    for (const sale of offlineSales) {
+      try {
+        const response = await fetch('/api/sales', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(sale)
+        });
+        
+        if (response.ok) {
+          // Remove from offline storage
+          await removeOfflineSale(sale.id);
+          console.log('[SW] Synced sale:', sale.id);
+        }
+      } catch (error) {
+        console.log('[SW] Failed to sync sale:', sale.id, error);
+      }
+    }
+    
+    console.log('[SW] Sync complete');
+  } catch (error) {
+    console.log('[SW] Sync failed:', error);
+  }
+}
+
+// Helper functions for IndexedDB operations
+async function getOfflineSales() {
+  // This would be implemented with IndexedDB
+  // For now, return empty array
+  return [];
+}
+
+async function removeOfflineSale(saleId) {
+  // This would be implemented with IndexedDB
+  // For now, just log
+  console.log('[SW] Removing offline sale:', saleId);
+}

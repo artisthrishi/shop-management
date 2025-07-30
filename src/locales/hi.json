@@ -28,6 +28,25 @@
     "reports": "रिपोर्ट",
     "settings": "सेटिंग्स"
   },
+  "offline": {
+    "youAreOffline": "आप ऑफलाइन हैं",
+    "capabilities": "आप अभी भी उत्पाद खोज सकते हैं और कार्ट प्रबंधित कर सकते हैं। बिक्री स्थानीय रूप से सहेजी जाएगी और ऑनलाइन होने पर सिंक होगी।",
+    "autoSync": "ऑनलाइन होने पर स्वचालित सिंक",
+    "offlineMode": "ऑफलाइन मोड",
+    "syncPending": "सिंक लंबित",
+    "syncInProgress": "सिंक हो रहा है...",
+    "syncComplete": "सिंक पूर्ण",
+    "syncFailed": "सिंक विफल",
+    "retrySync": "सिंक पुनः प्रयास करें"
+  },
+  "connection": {
+    "online": "ऑनलाइन",
+    "offline": "ऑफलाइन",
+    "connecting": "कनेक्ट हो रहा है...",
+    "connectionLost": "कनेक्शन खो गया",
+    "reconnecting": "पुनः कनेक्ट हो रहा है...",
+    "connectionRestored": "कनेक्शन पुनर्स्थापित"
+  },
   "home": {
     "title": "डैशबोर्ड",
     "todaysRevenue": "आज का राजस्व",

@@ -4,6 +4,8 @@ import "./globals.css";
 import { Toaster } from 'react-hot-toast';
 import NavigationBar from '@/components/NavigationBar';
 import ClientProviders from '@/components/ClientProviders';
+import OfflineBanner from '@/components/OfflineBanner';
+import PendingSyncIndicator from '@/components/PendingSyncIndicator';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -33,12 +35,14 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <ClientProviders>
+        <OfflineBanner />
         <div className="flex flex-col h-screen bg-gray-50">
           <main className="flex-1 overflow-y-auto pb-20">
             {children}
           </main>
           <NavigationBar />
         </div>
+        <PendingSyncIndicator />
         <Toaster position="top-center" />
         </ClientProviders>
       </body>

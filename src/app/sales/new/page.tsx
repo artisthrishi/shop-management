@@ -180,13 +180,26 @@ export default function NewSalePage() {
     const existingItem = cartItems.find(item => item.productVariation.id === product.id);
     
     if (existingItem) {
+      // Check if adding one more would exceed stock
+      const newQuantity = existingItem.quantity + 1;
+      if (newQuantity > product.current_stock) {
+        alert(`${product.name} - Cannot add more. Available stock: ${product.current_stock}`);
+        return;
+      }
+      
       // Update quantity if already in cart
       setCartItems(prev => prev.map(item => 
         item.productVariation.id === product.id 
-          ? { ...item, quantity: item.quantity + 1 }
+          ? { ...item, quantity: newQuantity }
           : item
       ));
     } else {
+      // Check if product has stock
+      if (product.current_stock <= 0) {
+        alert(`${product.name} - Out of stock. Available: ${product.current_stock}`);
+        return;
+      }
+      
       // Add new item to cart
       const newItem: CartItem = {
         productVariation: product,
@@ -206,7 +219,17 @@ export default function NewSalePage() {
 
   // Update cart item quantity (regular units)
   const updateCartItemQuantity = (productId: number, quantity: number) => {
+    const item = cartItems.find(item => item.productVariation.id === productId);
+    if (!item) return;
+    
     const validQuantity = Math.max(0, quantity);
+    
+    // Check if quantity exceeds available stock
+    if (validQuantity > item.productVariation.current_stock) {
+      alert(`${item.productVariation.name} - Cannot set quantity to ${validQuantity}. Available stock: ${item.productVariation.current_stock}`);
+      return;
+    }
+    
     setCartItems(prev => prev.map(item => 
       item.productVariation.id === productId 
         ? { ...item, quantity: validQuantity }
@@ -229,6 +252,12 @@ export default function NewSalePage() {
 
     const totalValue = getFractionalQuantityValue(fractionalQuantity, unit);
     const validQuantity = Math.max(0, totalValue);
+    
+    // Check if quantity exceeds available stock
+    if (validQuantity > item.productVariation.current_stock) {
+      alert(`${item.productVariation.name} - Cannot set quantity to ${validQuantity}. Available stock: ${item.productVariation.current_stock}`);
+      return;
+    }
 
     setCartItems(prev => prev.map(item => 
       item.productVariation.id === productId 
@@ -580,7 +609,32 @@ export default function NewSalePage() {
           </div>
           
           <button
-            onClick={() => router.push('/sales/checkout')}
+            onClick={() => {
+              // Validate stock before proceeding to checkout
+              const stockErrors: string[] = [];
+              
+              cartItems.forEach(item => {
+                // Check if item has zero stock
+                if (item.productVariation.current_stock <= 0) {
+                  stockErrors.push(`${item.productVariation.name} - Out of stock (Available: ${item.productVariation.current_stock})`);
+                }
+                // Check if quantity exceeds available stock
+                else if (item.quantity > item.productVariation.current_stock) {
+                  stockErrors.push(`${item.productVariation.name} - Quantity (${item.quantity}) exceeds available stock (${item.productVariation.current_stock})`);
+                }
+                // Check if quantity is zero
+                else if (item.quantity <= 0) {
+                  stockErrors.push(`${item.productVariation.name} - Quantity must be greater than 0`);
+                }
+              });
+              
+              if (stockErrors.length > 0) {
+                alert('Stock validation failed:\n' + stockErrors.join('\n'));
+                return;
+              }
+              
+              router.push('/sales/checkout');
+            }}
             className="w-full bg-blue-600 text-white font-semibold py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors"
           >
             {t('sales.checkout', 'Checkout')} ({cartItems.length} {t('sales.items', 'items')})

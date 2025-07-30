@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useRouter } from 'next/navigation';
 import { ArrowLeftIcon, CreditCardIcon, BanknotesIcon } from '@heroicons/react/24/outline';
@@ -30,6 +30,14 @@ export default function CheckoutPage() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [loading, setLoading] = useState(false);
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<{
+    phone?: string;
+    name?: string;
+  }>({});
+  
+  // Refs for input fields
+  const nameInputRef = useRef<HTMLInputElement>(null);
+  const phoneInputRef = useRef<HTMLInputElement>(null);
 
   // Load shop settings and cart data
   useEffect(() => {
@@ -56,22 +64,67 @@ export default function CheckoutPage() {
   const profit = calculateCartProfit(cartItems);
   const total = subtotal;
 
+  // Scroll to the first error field
+  const scrollToFirstError = () => {
+    if (validationErrors.name && nameInputRef.current) {
+      nameInputRef.current.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'center' 
+      });
+      nameInputRef.current.focus();
+    } else if (validationErrors.phone && phoneInputRef.current) {
+      phoneInputRef.current.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'center' 
+      });
+      phoneInputRef.current.focus();
+    }
+  };
+
+  // Validate customer information
+  const validateCustomerInfo = () => {
+    const errors: { phone?: string; name?: string } = {};
+    
+    // Validate phone number if provided
+    if (customerInfo.phone.trim()) {
+      const cleanPhone = customerInfo.phone.replace(/\s/g, '');
+      if (!/^[\d\-\+\(\)]+$/.test(cleanPhone) || cleanPhone.length < 10) {
+        errors.phone = 'Please enter a valid phone number (at least 10 digits)';
+      }
+    }
+    
+    // Validate name if provided
+    if (customerInfo.name.trim() && customerInfo.name.length < 2) {
+      errors.name = 'Customer name must be at least 2 characters';
+    }
+    
+    setValidationErrors(errors);
+    
+    // Scroll to first error if there are any
+    if (Object.keys(errors).length > 0) {
+      setTimeout(() => scrollToFirstError(), 100);
+    }
+    
+    return Object.keys(errors).length === 0;
+  };
+
   const handleCompleteSale = async () => {
+    // Clear previous validation errors
+    setValidationErrors({});
+    
+    // Validate customer information
+    if (!validateCustomerInfo()) {
+      return;
+    }
+    
     setLoading(true);
     try {
-      // Validate stock availability
-      const stockValidation = await validateStockAvailability(cartItems);
-      if (!stockValidation.valid) {
-        alert(`Stock validation failed:\n${stockValidation.errors.join('\n')}`);
-        return;
-      }
-
       // Create sale with items
       const saleData = {
         total_amount: total,
         estimated_profit: profit,
-        customer_name: customerInfo.name || undefined,
-        customer_phone: customerInfo.phone || undefined,
+        customer_name: customerInfo.name.trim() || undefined,
+        customer_phone: customerInfo.phone.trim() || undefined,
         payment_method: paymentMethod
       };
 
@@ -91,7 +144,19 @@ export default function CheckoutPage() {
       }, 3000);
     } catch (error) {
       console.error('Error completing sale:', error);
-      alert('Error completing sale. Please try again.');
+      
+      // Handle specific validation errors from database
+      if (error instanceof Error) {
+        if (error.message.includes('phone number')) {
+          setValidationErrors({ phone: error.message });
+        } else if (error.message.includes('customer name')) {
+          setValidationErrors({ name: error.message });
+        } else {
+          alert('Error completing sale. Please try again.');
+        }
+      } else {
+        alert('Error completing sale. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -155,12 +220,26 @@ export default function CheckoutPage() {
                   {t('checkout.customerName', 'Customer Name')}
                 </label>
                 <input
+                  ref={nameInputRef}
                   type="text"
                   value={customerInfo.name}
-                  onChange={(e) => setCustomerInfo(prev => ({ ...prev, name: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-700"
+                  onChange={(e) => {
+                    setCustomerInfo(prev => ({ ...prev, name: e.target.value }));
+                    // Clear validation error when user starts typing
+                    if (validationErrors.name) {
+                      setValidationErrors(prev => ({ ...prev, name: undefined }));
+                    }
+                  }}
+                  className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-700 ${
+                    validationErrors.name 
+                      ? 'border-red-500 bg-red-50' 
+                      : 'border-gray-300'
+                  }`}
                   placeholder={t('checkout.enterCustomerName', 'Enter customer name')}
                 />
+                {validationErrors.name && (
+                  <p className="text-red-500 text-xs mt-1">{validationErrors.name}</p>
+                )}
               </div>
               
               <div>
@@ -168,12 +247,26 @@ export default function CheckoutPage() {
                   {t('checkout.phoneNumber', 'Phone Number')}
                 </label>
                 <input
+                  ref={phoneInputRef}
                   type="tel"
                   value={customerInfo.phone}
-                  onChange={(e) => setCustomerInfo(prev => ({ ...prev, phone: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-700"
+                  onChange={(e) => {
+                    setCustomerInfo(prev => ({ ...prev, phone: e.target.value }));
+                    // Clear validation error when user starts typing
+                    if (validationErrors.phone) {
+                      setValidationErrors(prev => ({ ...prev, phone: undefined }));
+                    }
+                  }}
+                  className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-700 ${
+                    validationErrors.phone 
+                      ? 'border-red-500 bg-red-50' 
+                      : 'border-gray-300'
+                  }`}
                   placeholder={t('checkout.enterPhone', 'Enter phone number')}
                 />
+                {validationErrors.phone && (
+                  <p className="text-red-500 text-xs mt-1">{validationErrors.phone}</p>
+                )}
               </div>
             </div>
           </div>

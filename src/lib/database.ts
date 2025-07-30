@@ -44,6 +44,44 @@ import type {
   Unit 
 } from '@/types';
 
+// Validation utilities
+function validatePositiveNumber(value: any, fieldName: string): number {
+  if (typeof value !== 'number' || value <= 0) {
+    throw new Error(`${fieldName} must be a positive number`);
+  }
+  return value;
+}
+
+function validateNonNegativeNumber(value: any, fieldName: string): number {
+  if (typeof value !== 'number' || value < 0) {
+    throw new Error(`${fieldName} must be a non-negative number`);
+  }
+  return value;
+}
+
+function validateString(value: any, fieldName: string, required = true): string | null {
+  if (required && (!value || typeof value !== 'string')) {
+    throw new Error(`${fieldName} must be a non-empty string`);
+  }
+  if (!required && value === undefined) {
+    return null;
+  }
+  if (value && typeof value !== 'string') {
+    throw new Error(`${fieldName} must be a string`);
+  }
+  return value ? value.trim() : null;
+}
+
+function validatePhoneNumber(phone: string | null): string | null {
+  if (!phone) return null;
+  
+  const cleanPhone = phone.replace(/\s/g, '');
+  if (!/^[\d\-\+\(\)]+$/.test(cleanPhone) || cleanPhone.length < 10) {
+    throw new Error('Invalid phone number format: must be at least 10 digits');
+  }
+  return phone.trim();
+}
+
 // Units
 export async function getUnits(): Promise<Unit[]> {
   const { data, error } = await supabase
@@ -522,45 +560,91 @@ export async function createSaleWithItems(
     sellingPrice: number;
   }>
 ): Promise<{ sale: Sale; saleItems: SaleItem[] }> {
-  const userId = await getCurrentUserId();
-  const invoiceNumber = await generateInvoiceNumber();
+  // Input validation
+  if (!saleData || typeof saleData.total_amount !== 'number' || saleData.total_amount <= 0) {
+    throw new Error('Invalid sale data: total_amount must be a positive number');
+  }
   
-  // Create sale record
-  const { data: sale, error: saleError } = await supabase
-    .from('sales')
-    .insert({
-      user_id: userId,
-      total_amount: saleData.total_amount,
-      estimated_profit: saleData.estimated_profit,
-      invoice_number: invoiceNumber,
-      customer_name: saleData.customer_name || null,
-      customer_phone: saleData.customer_phone || null,
-      payment_method: saleData.payment_method || null,
-      customer_contact: saleData.customer_name || saleData.customer_phone || null
-    })
-    .select()
-    .single();
+  if (!cartItems || !Array.isArray(cartItems) || cartItems.length === 0) {
+    throw new Error('Invalid cart items: must be a non-empty array');
+  }
   
-  if (saleError) throw saleError;
+  // Validate cart items
+  for (const item of cartItems) {
+    if (!item.productVariation || !item.productVariation.id) {
+      throw new Error('Invalid cart item: product variation is required');
+    }
+    if (typeof item.quantity !== 'number' || item.quantity <= 0) {
+      throw new Error(`Invalid quantity for product ${item.productVariation.name}: must be positive`);
+    }
+    if (typeof item.sellingPrice !== 'number' || item.sellingPrice < 0) {
+      throw new Error(`Invalid selling price for product ${item.productVariation.name}: must be non-negative`);
+    }
+  }
   
-  // Create sale items
-  const saleItemsData = cartItems.map(item => ({
-    sale_id: sale.id,
-    product_variation_id: item.productVariation.id,
-    quantity: item.quantity,
-    selling_price: item.sellingPrice,
-    purchase_price: item.productVariation.purchase_price,
-    total: item.quantity * item.sellingPrice
-  }));
+  // Validate customer phone format if provided
+  if (saleData.customer_phone && !/^[\d\s\-\+\(\)]+$/.test(saleData.customer_phone)) {
+    throw new Error('Invalid customer phone number format');
+  }
   
-  const { data: saleItems, error: itemsError } = await supabase
-    .from('sale_items')
-    .insert(saleItemsData)
-    .select();
-  
-  if (itemsError) throw itemsError;
-  
-  return { sale, saleItems: saleItems || [] };
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      throw new Error('User not authenticated');
+    }
+    
+    const invoiceNumber = await generateInvoiceNumber();
+    
+    // Create sale record
+    const { data: sale, error: saleError } = await supabase
+      .from('sales')
+      .insert({
+        user_id: userId,
+        total_amount: saleData.total_amount,
+        estimated_profit: saleData.estimated_profit,
+        invoice_number: invoiceNumber,
+        customer_name: saleData.customer_name?.trim() || null,
+        customer_phone: saleData.customer_phone?.trim() || null,
+        payment_method: saleData.payment_method?.trim() || null,
+        customer_contact: (saleData.customer_name || saleData.customer_phone)?.trim() || null
+      })
+      .select()
+      .single();
+    
+    if (saleError) {
+      console.error('Sale creation error:', saleError);
+      throw new Error('Failed to create sale record');
+    }
+    
+    if (!sale) {
+      throw new Error('Sale creation failed: no data returned');
+    }
+    
+    // Create sale items
+    const saleItemsData = cartItems.map(item => ({
+      sale_id: sale.id,
+      product_variation_id: item.productVariation.id,
+      quantity: item.quantity,
+      selling_price: item.sellingPrice,
+      purchase_price: item.productVariation.purchase_price,
+      total: item.quantity * item.sellingPrice
+    }));
+    
+    const { data: saleItems, error: itemsError } = await supabase
+      .from('sale_items')
+      .insert(saleItemsData)
+      .select();
+    
+    if (itemsError) {
+      console.error('Sale items creation error:', itemsError);
+      throw new Error('Failed to create sale items');
+    }
+    
+    return { sale, saleItems: saleItems || [] };
+  } catch (error) {
+    console.error('createSaleWithItems error:', error);
+    throw error;
+  }
 }
 
 export async function validateStockAvailability(
@@ -571,7 +655,38 @@ export async function validateStockAvailability(
 ): Promise<{ valid: boolean; errors: string[] }> {
   const errors: string[] = [];
   
+  // Input validation
+  if (!cartItems || !Array.isArray(cartItems)) {
+    throw new Error('Invalid cart items: must be an array');
+  }
+  
+  if (cartItems.length === 0) {
+    return { valid: true, errors: [] };
+  }
+  
   for (const item of cartItems) {
+    // Validate item structure
+    if (!item.productVariation) {
+      errors.push('Invalid cart item: product variation is missing');
+      continue;
+    }
+    
+    if (!item.productVariation.id) {
+      errors.push('Invalid cart item: product variation ID is missing');
+      continue;
+    }
+    
+    if (typeof item.quantity !== 'number' || item.quantity <= 0) {
+      errors.push(`Invalid quantity for ${item.productVariation.name}: must be positive`);
+      continue;
+    }
+    
+    if (typeof item.productVariation.current_stock !== 'number' || item.productVariation.current_stock < 0) {
+      errors.push(`Invalid stock data for ${item.productVariation.name}: stock cannot be negative`);
+      continue;
+    }
+    
+    // Check stock availability
     if (item.quantity > item.productVariation.current_stock) {
       errors.push(
         `${item.productVariation.name} - Insufficient stock. Available: ${item.productVariation.current_stock}, Requested: ${item.quantity}`
@@ -586,70 +701,124 @@ export async function validateStockAvailability(
 }
 
 export async function getSaleWithItems(saleId: string) {
-  const { data: sale, error: saleError } = await supabase
-    .from('sales')
-    .select('*')
-    .eq('id', saleId)
-    .single();
+  // Input validation
+  if (!saleId || typeof saleId !== 'string') {
+    throw new Error('Invalid sale ID: must be a non-empty string');
+  }
   
-  if (saleError) throw saleError;
+  if (!/^\d+$/.test(saleId)) {
+    throw new Error('Invalid sale ID format: must be a numeric string');
+  }
   
-  const { data: saleItems, error: itemsError } = await supabase
-    .from('sale_items')
-    .select(`
-      *,
-      product_variations(
+  try {
+    const { data: sale, error: saleError } = await supabase
+      .from('sales')
+      .select('*')
+      .eq('id', saleId)
+      .single();
+    
+    if (saleError) {
+      console.error('Sale fetch error:', saleError);
+      if (saleError.code === 'PGRST116') {
+        throw new Error(`Sale with ID ${saleId} not found`);
+      }
+      throw new Error('Failed to fetch sale data');
+    }
+    
+    if (!sale) {
+      throw new Error(`Sale with ID ${saleId} not found`);
+    }
+    
+    const { data: saleItems, error: itemsError } = await supabase
+      .from('sale_items')
+      .select(`
         *,
-        products(name, brand, category),
-        units(name)
-      )
-    `)
-    .eq('sale_id', saleId);
-  
-  if (itemsError) throw itemsError;
-  
-  return {
-    sale,
-    saleItems: saleItems || []
-  };
+        product_variations(
+          *,
+          products(name, brand, category),
+          units(name)
+        )
+      `)
+      .eq('sale_id', saleId);
+    
+    if (itemsError) {
+      console.error('Sale items fetch error:', itemsError);
+      throw new Error('Failed to fetch sale items');
+    }
+    
+    return {
+      sale,
+      saleItems: saleItems || []
+    };
+  } catch (error) {
+    console.error('getSaleWithItems error:', error);
+    throw error;
+  }
 }
 
 export async function updateSalePhone(saleId: number, phoneNumber: string) {
-  console.log('Updating sale ID:', saleId, 'with phone:', phoneNumber);
-  
-  // First check if the sale exists
-  const { data: existingSale, error: checkError } = await supabase
-    .from('sales')
-    .select('id')
-    .eq('id', saleId)
-    .single();
-  
-  if (checkError) {
-    console.error('Sale check error:', checkError);
-    throw new Error(`Sale with ID ${saleId} not found`);
+  // Input validation
+  if (!saleId || typeof saleId !== 'number' || saleId <= 0) {
+    throw new Error('Invalid sale ID: must be a positive number');
   }
   
-  console.log('Sale exists, proceeding with update');
+  if (!phoneNumber || typeof phoneNumber !== 'string') {
+    throw new Error('Invalid phone number: must be a non-empty string');
+  }
   
-  const { data, error } = await supabase
-    .from('sales')
-    .update({ 
-      customer_phone: phoneNumber,
-      customer_contact: phoneNumber // Also update contact field
-    })
-    .eq('id', saleId)
-    .select();
+  // Validate phone number format (basic validation)
+  const cleanPhone = phoneNumber.replace(/\s/g, '');
+  if (!/^[\d\-\+\(\)]+$/.test(cleanPhone) || cleanPhone.length < 10) {
+    throw new Error('Invalid phone number format: must be at least 10 digits');
+  }
   
-  if (error) {
-    console.error('Update error:', error);
+  try {
+    console.log('Updating sale ID:', saleId, 'with phone:', phoneNumber);
+    
+    // First check if the sale exists
+    const { data: existingSale, error: checkError } = await supabase
+      .from('sales')
+      .select('id')
+      .eq('id', saleId)
+      .single();
+    
+    if (checkError) {
+      console.error('Sale check error:', checkError);
+      if (checkError.code === 'PGRST116') {
+        throw new Error(`Sale with ID ${saleId} not found`);
+      }
+      throw new Error('Failed to check sale existence');
+    }
+    
+    if (!existingSale) {
+      throw new Error(`Sale with ID ${saleId} not found`);
+    }
+    
+    console.log('Sale exists, proceeding with update');
+    
+    const { data, error } = await supabase
+      .from('sales')
+      .update({ 
+        customer_phone: phoneNumber.trim(),
+        customer_contact: phoneNumber.trim() // Also update contact field
+      })
+      .eq('id', saleId)
+      .select();
+    
+    if (error) {
+      console.error('Update error:', error);
+      throw new Error('Failed to update sale phone number');
+    }
+    
+    // Check if any rows were updated
+    if (!data || data.length === 0) {
+      throw new Error(`Sale with ID ${saleId} not found during update`);
+    }
+    
+    console.log('Update successful:', data[0]);
+    return data[0];
+  } catch (error) {
+    console.error('updateSalePhone error:', error);
     throw error;
   }
-  
-  // Check if any rows were updated
-  if (!data || data.length === 0) {
-    throw new Error(`Sale with ID ${saleId} not found`);
-  }
-  
-  console.log('Update successful:', data[0]);
-  return data[0];
 } 

@@ -89,6 +89,13 @@ export default function InvoicePage() {
       return;
     }
     
+    // Validate phone number format
+    const cleanPhone = customerPhone.replace(/\s/g, '');
+    if (!/^[\d\-\+\(\)]+$/.test(cleanPhone) || cleanPhone.length < 10) {
+      alert('Please enter a valid phone number (at least 10 digits)');
+      return;
+    }
+    
     if (!invoiceData) return;
     
     setUpdatingPhone(true);

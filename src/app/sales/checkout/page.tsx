@@ -29,6 +29,7 @@ export default function CheckoutPage() {
   });
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [loading, setLoading] = useState(false);
+  const [showSuccessMessage, setShowSuccessMessage] = useState(false);
 
   // Load shop settings and cart data
   useEffect(() => {
@@ -80,10 +81,14 @@ export default function CheckoutPage() {
       localStorage.removeItem('cartItems');
       
       // Show success message
-      alert(`Sale completed successfully!\nInvoice: ${sale.invoice_number}\nTotal: ${formatCurrency(sale.total_amount)}`);
+      setShowSuccessMessage(true);
       
-      // Redirect to home page
-      router.push('/');
+      // Hide success message after 3 seconds
+      setTimeout(() => {
+        setShowSuccessMessage(false);
+        // Redirect to invoice page
+        router.push(`/sales/invoice/${sale.id}`);
+      }, 3000);
     } catch (error) {
       console.error('Error completing sale:', error);
       alert('Error completing sale. Please try again.');
@@ -271,6 +276,24 @@ export default function CheckoutPage() {
           </button>
         </div>
       </div>
+
+      {/* Floating Success Message */}
+      {showSuccessMessage && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-8 rounded-lg max-w-md w-full mx-4 text-center">
+            <div className="text-6xl mb-4">✅</div>
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">
+              {t('checkout.saleCompleted', 'Sale Completed Successfully!')}
+            </h2>
+            <p className="text-gray-600 mb-4">
+              {t('checkout.inventoryUpdated', 'Inventory has been updated automatically.')}
+            </p>
+            <div className="text-sm text-gray-500">
+              {t('checkout.redirecting', 'Redirecting to invoice...')}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 } 

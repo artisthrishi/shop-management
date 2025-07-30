@@ -85,6 +85,9 @@ export interface Sale {
   estimated_profit: number;
   invoice_number: string;
   customer_contact: string;
+  customer_name?: string;
+  customer_phone?: string;
+  payment_method?: string;
 }
 
 export interface SaleItem {

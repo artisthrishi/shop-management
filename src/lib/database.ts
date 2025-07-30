@@ -583,4 +583,73 @@ export async function validateStockAvailability(
     valid: errors.length === 0,
     errors
   };
+}
+
+export async function getSaleWithItems(saleId: string) {
+  const { data: sale, error: saleError } = await supabase
+    .from('sales')
+    .select('*')
+    .eq('id', saleId)
+    .single();
+  
+  if (saleError) throw saleError;
+  
+  const { data: saleItems, error: itemsError } = await supabase
+    .from('sale_items')
+    .select(`
+      *,
+      product_variations(
+        *,
+        products(name, brand, category),
+        units(name)
+      )
+    `)
+    .eq('sale_id', saleId);
+  
+  if (itemsError) throw itemsError;
+  
+  return {
+    sale,
+    saleItems: saleItems || []
+  };
+}
+
+export async function updateSalePhone(saleId: number, phoneNumber: string) {
+  console.log('Updating sale ID:', saleId, 'with phone:', phoneNumber);
+  
+  // First check if the sale exists
+  const { data: existingSale, error: checkError } = await supabase
+    .from('sales')
+    .select('id')
+    .eq('id', saleId)
+    .single();
+  
+  if (checkError) {
+    console.error('Sale check error:', checkError);
+    throw new Error(`Sale with ID ${saleId} not found`);
+  }
+  
+  console.log('Sale exists, proceeding with update');
+  
+  const { data, error } = await supabase
+    .from('sales')
+    .update({ 
+      customer_phone: phoneNumber,
+      customer_contact: phoneNumber // Also update contact field
+    })
+    .eq('id', saleId)
+    .select();
+  
+  if (error) {
+    console.error('Update error:', error);
+    throw error;
+  }
+  
+  // Check if any rows were updated
+  if (!data || data.length === 0) {
+    throw new Error(`Sale with ID ${saleId} not found`);
+  }
+  
+  console.log('Update successful:', data[0]);
+  return data[0];
 } 

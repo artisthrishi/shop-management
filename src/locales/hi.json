@@ -41,7 +41,15 @@
     "productSearch": "उत्पाद खोजें...",
     "invoice": "चालान",
     "downloadPDF": "PDF डाउनलोड करें",
-    "sendWhatsApp": "WhatsApp पर भेजें"
+    "sendWhatsApp": "WhatsApp पर भेजें",
+    "recentSales": "हाल की बिक्री",
+    "customer": "ग्राहक",
+    "noRecentSales": "कोई हाल की बिक्री नहीं",
+    "viewAllSales": "सभी बिक्री देखें",
+    "totalInventoryValue": "कुल इन्वेंटरी मूल्य",
+    "restockAlert": "रीस्टॉक अलर्ट",
+    "itemsNeedRestock": "आइटम को रीस्टॉक की आवश्यकता",
+    "allStocked": "सभी स्टॉक में"
   },
   "inventory": {
     "title": "इन्वेंटरी",

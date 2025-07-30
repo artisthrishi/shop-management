@@ -7,8 +7,8 @@ import { HomeIcon, CubeIcon, ChartBarIcon, Cog6ToothIcon } from '@heroicons/reac
 export default function NavigationBar() {
   const pathname = usePathname();
   
-  // Hide navigation on login page
-  if (pathname === '/login') {
+  // Hide navigation on login page and sales pages
+  if (pathname === '/login' || pathname.startsWith('/sales')) {
     return null;
   }
 

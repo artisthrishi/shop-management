@@ -41,7 +41,15 @@
     "productSearch": "उत्पादने शोधा...",
     "invoice": "चलन",
     "downloadPDF": "PDF डाउनलोड करा",
-    "sendWhatsApp": "WhatsApp वर पाठवा"
+    "sendWhatsApp": "WhatsApp वर पाठवा",
+    "recentSales": "अलीकडील विक्री",
+    "customer": "ग्राहक",
+    "noRecentSales": "कोणत्याही अलीकडील विक्री नाही",
+    "viewAllSales": "सर्व विक्री पहा",
+    "totalInventoryValue": "एकूण साठा मूल्य",
+    "restockAlert": "रीस्टॉक सूचना",
+    "itemsNeedRestock": "वस्तूंना रीस्टॉक आवश्यक",
+    "allStocked": "सर्व साठा भरले"
   },
   "inventory": {
     "title": "साठा",
@@ -145,5 +153,35 @@
     "settingsSaved": "सेटिंग्ज यशस्वीरित्या जतन केल्या",
     "backupCreated": "बॅकअप यशस्वीरित्या तयार केले",
     "dataRestored": "डेटा यशस्वीरित्या पुनर्संचयित केला"
+  },
+  "sales": {
+    "newSale": "नवीन विक्री",
+    "searchProducts": "उत्पादने शोधा",
+    "searchPlaceholder": "नाव, ब्रँड किंवा श्रेणीनुसार शोधा...",
+    "noProductsFound": "कोणतीही उत्पादने सापडली नाहीत",
+    "tryDifferentSearch": "वेगळा शोध शब्द वापरून पहा",
+    "cart": "कार्ट",
+    "emptyCart": "कार्ट रिकामे आहे",
+    "addProductsToCart": "सुरु करण्यासाठी उत्पादने शोधा आणि जोडा",
+    "quantity": "प्रमाण",
+    "price": "किंमत",
+    "total": "एकूण",
+    "subtotal": "उप-एकूण",
+    "estimatedProfit": "अंदाजित नफा",
+    "checkout": "चेकआउट",
+    "items": "आयटम",
+    "stock": "स्टॉक",
+    "cost": "खर्च",
+    "searchError": "उत्पादने शोधताना त्रुटी",
+    "outOfStock": "स्टॉक नाही",
+    "lowStock": "कमी स्टॉक",
+    "inStock": "स्टॉकमध्ये",
+    "clearCart": "कार्ट साफ करा",
+    "exceedsStock": "स्टॉकापेक्षा जास्त",
+    "willDepleteStock": "स्टॉक संपेल",
+    "lowStockAfterSale": "विक्रीनंतर कमी स्टॉक",
+    "stockOK": "स्टॉक ठीक",
+    "exceedsAvailableStock": "उपलब्ध स्टॉकापेक्षा जास्त",
+    "someItemsExceedStock": "काही आयटम उपलब्ध स्टॉकापेक्षा जास्त आहेत"
   }
 } 

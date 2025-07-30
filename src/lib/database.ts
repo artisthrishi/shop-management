@@ -245,3 +245,241 @@ export async function getAllProductsWithVariations() {
   if (error) throw error;
   return data || [];
 } 
+
+// Product search with variations
+export async function searchProducts(query: string): Promise<ProductVariation[]> {
+  // First, get all product variations with joined data
+  const { data, error } = await supabase
+    .from('product_variations')
+    .select(`
+      *,
+      products(name, brand, category),
+      units(name, fractional, subunit_name, subunit_factor)
+    `)
+    .order('current_stock', { ascending: false });
+  
+  if (error) throw error;
+  
+  // Filter results client-side to include all search criteria
+  const filteredData = (data || []).filter(item => {
+    const productName = (item as any).products?.name?.toLowerCase() || '';
+    const productBrand = (item as any).products?.brand?.toLowerCase() || '';
+    const productCategory = (item as any).products?.category?.toLowerCase() || '';
+    const variationName = item.name?.toLowerCase() || '';
+    const searchTerm = query.toLowerCase();
+    
+    return productName.includes(searchTerm) || 
+           productBrand.includes(searchTerm) || 
+           productCategory.includes(searchTerm) || 
+           variationName.includes(searchTerm);
+  });
+  
+  // Return top 20 results
+  return filteredData.slice(0, 20);
+}
+
+// Calculate total inventory value
+export async function getTotalInventoryValue(): Promise<number> {
+  const { data, error } = await supabase
+    .from('product_variations')
+    .select('current_stock, purchase_price');
+  
+  if (error) throw error;
+  
+  return (data || []).reduce((total, item) => {
+    return total + (item.current_stock * item.purchase_price);
+  }, 0);
+}
+
+// Get low stock products (current_stock <= min_stock)
+export async function getLowStockProducts(): Promise<ProductVariation[]> {
+  const { data, error } = await supabase
+    .from('product_variations')
+    .select(`
+      *,
+      products(name, brand, category),
+      units(name, fractional, subunit_name, subunit_factor)
+    `)
+    .order('current_stock', { ascending: true });
+  
+  if (error) throw error;
+  
+  // Filter client-side for items where current_stock <= min_stock
+  const lowStockItems = (data || []).filter(item => 
+    item.current_stock <= item.min_stock
+  );
+  
+  return lowStockItems.slice(0, 5); // Return top 5 low stock items
+}
+
+// Get today's sales
+export async function getTodaySales(): Promise<Sale[]> {
+  const today = new Date();
+  const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59);
+  
+  const { data, error } = await supabase
+    .from('sales')
+    .select('*')
+    .gte('created_at', startOfDay.toISOString())
+    .lte('created_at', endOfDay.toISOString())
+    .order('created_at', { ascending: false });
+  
+  if (error) throw error;
+  return data || [];
+}
+
+// Get this week's sales
+export async function getWeekSales(): Promise<Sale[]> {
+  const today = new Date();
+  const startOfWeek = new Date(today);
+  startOfWeek.setDate(today.getDate() - today.getDay());
+  startOfWeek.setHours(0, 0, 0, 0);
+  
+  const { data, error } = await supabase
+    .from('sales')
+    .select('*')
+    .gte('created_at', startOfWeek.toISOString())
+    .order('created_at', { ascending: false });
+  
+  if (error) throw error;
+  return data || [];
+}
+
+// Get this month's sales
+export async function getMonthSales(): Promise<Sale[]> {
+  const today = new Date();
+  const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+  
+  const { data, error } = await supabase
+    .from('sales')
+    .select('*')
+    .gte('created_at', startOfMonth.toISOString())
+    .order('created_at', { ascending: false });
+  
+  if (error) throw error;
+  return data || [];
+}
+
+// Get comprehensive inventory statistics
+export async function getInventoryStats() {
+  const { data, error } = await supabase
+    .from('product_variations')
+    .select('current_stock, min_stock, purchase_price');
+  
+  if (error) throw error;
+  
+  const items = data || [];
+  const totalItems = items.length;
+  const totalValue = items.reduce((sum, item) => sum + (item.current_stock * item.purchase_price), 0);
+  const lowStockCount = items.filter(item => item.current_stock <= item.min_stock).length;
+  const outOfStockCount = items.filter(item => item.current_stock === 0).length;
+  const averageStock = totalItems > 0 ? items.reduce((sum, item) => sum + item.current_stock, 0) / totalItems : 0;
+  
+  return {
+    totalItems,
+    totalValue,
+    lowStockCount,
+    outOfStockCount,
+    averageStock
+  };
+}
+
+// Get shop settings with defaults
+export async function getShopSettingsWithDefaults(): Promise<ShopSettings> {
+  const settings = await getShopSettings();
+  
+  if (settings) {
+    return settings;
+  }
+  
+  // Return default settings if none exist
+  return {
+    id: 1,
+    shop_name: 'My Shop',
+    gst_number: '',
+    contact: '',
+    language: 'en'
+  };
+}
+
+// Get sales with detailed items
+export async function getSalesWithItems(filters?: { startDate?: string; endDate?: string }): Promise<any[]> {
+  let query = supabase
+    .from('sales')
+    .select(`
+      *,
+      sale_items(
+        *,
+        product_variations(
+          *,
+          products(name, brand, category),
+          units(name)
+        )
+      )
+    `)
+    .order('created_at', { ascending: false });
+  
+  if (filters?.startDate) {
+    query = query.gte('created_at', filters.startDate);
+  }
+  
+  if (filters?.endDate) {
+    query = query.lte('created_at', filters.endDate);
+  }
+  
+  const { data, error } = await query;
+  if (error) throw error;
+  return data || [];
+}
+
+// Update multiple stock levels at once
+export async function updateMultipleStockLevels(updates: { id: number; newStock: number }[]) {
+  const { data, error } = await supabase
+    .from('product_variations')
+    .upsert(
+      updates.map(update => ({
+        id: update.id,
+        current_stock: update.newStock,
+        updated_at: new Date().toISOString()
+      }))
+    )
+    .select();
+  
+  if (error) throw error;
+  return data || [];
+}
+
+// Get top selling products
+export async function getTopSellingProducts(limit = 10) {
+  const { data, error } = await supabase
+    .from('sale_items')
+    .select(`
+      quantity,
+      product_variations(
+        *,
+        products(name, brand, category),
+        units(name)
+      )
+    `);
+  
+  if (error) throw error;
+  
+  // Group by product variation and sum quantities
+  const productSales = (data || []).reduce((acc: any, item: any) => {
+    const variationId = item.product_variations.id;
+    if (!acc[variationId]) {
+      acc[variationId] = {
+        ...item.product_variations,
+        totalQuantity: 0
+      };
+    }
+    acc[variationId].totalQuantity += item.quantity;
+    return acc;
+  }, {});
+  
+  // Convert to array and sort by total quantity
+  return Object.values(productSales)
+    .sort((a: any, b: any) => b.totalQuantity - a.totalQuantity)
+    .slice(0, limit);
+} 

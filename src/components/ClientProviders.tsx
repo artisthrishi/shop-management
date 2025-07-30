@@ -1,8 +1,7 @@
 // ============================================================================
-// Context: Shop Manager MVP - ClientProviders for i18n and other client context
+// Context for Cursor AI – Shop Manager MVP - ClientProviders for modal context
 // ============================================================================
 'use client';
-import '../lib/i18n';
 import React, { createContext, useState } from 'react';
 
 export const ModalContext = createContext({

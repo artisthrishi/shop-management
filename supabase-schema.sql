@@ -2423,6 +2423,9 @@ CREATE TABLE public.sales (
     total_amount numeric(12,2) NOT NULL,
     estimated_profit numeric(12,2) NOT NULL,
     invoice_number text,
+    customer_name text,
+    customer_phone text,
+    payment_method text,
     customer_contact text
 );
 

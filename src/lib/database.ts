@@ -482,4 +482,105 @@ export async function getTopSellingProducts(limit = 10) {
   return Object.values(productSales)
     .sort((a: any, b: any) => b.totalQuantity - a.totalQuantity)
     .slice(0, limit);
+}
+
+// Checkout Functions
+export async function getCurrentUserId(): Promise<string | null> {
+  const { data: { user }, error } = await supabase.auth.getUser();
+  if (error) throw error;
+  return user?.id || null;
+}
+
+export async function generateInvoiceNumber(): Promise<string> {
+  const today = new Date();
+  const dateStr = today.toISOString().slice(0, 10).replace(/-/g, '');
+  
+  // Get count of sales for today
+  const { count, error } = await supabase
+    .from('sales')
+    .select('*', { count: 'exact', head: true })
+    .gte('created_at', today.toISOString().slice(0, 10) + 'T00:00:00')
+    .lt('created_at', today.toISOString().slice(0, 10) + 'T23:59:59');
+  
+  if (error) throw error;
+  
+  const sequenceNumber = (count || 0) + 1;
+  return `INV-${dateStr}-${sequenceNumber.toString().padStart(3, '0')}`;
+}
+
+export async function createSaleWithItems(
+  saleData: {
+    total_amount: number;
+    estimated_profit: number;
+    customer_name?: string;
+    customer_phone?: string;
+    payment_method?: string;
+  },
+  cartItems: Array<{
+    productVariation: ProductVariation;
+    quantity: number;
+    sellingPrice: number;
+  }>
+): Promise<{ sale: Sale; saleItems: SaleItem[] }> {
+  const userId = await getCurrentUserId();
+  const invoiceNumber = await generateInvoiceNumber();
+  
+  // Create sale record
+  const { data: sale, error: saleError } = await supabase
+    .from('sales')
+    .insert({
+      user_id: userId,
+      total_amount: saleData.total_amount,
+      estimated_profit: saleData.estimated_profit,
+      invoice_number: invoiceNumber,
+      customer_name: saleData.customer_name || null,
+      customer_phone: saleData.customer_phone || null,
+      payment_method: saleData.payment_method || null,
+      customer_contact: saleData.customer_name || saleData.customer_phone || null
+    })
+    .select()
+    .single();
+  
+  if (saleError) throw saleError;
+  
+  // Create sale items
+  const saleItemsData = cartItems.map(item => ({
+    sale_id: sale.id,
+    product_variation_id: item.productVariation.id,
+    quantity: item.quantity,
+    selling_price: item.sellingPrice,
+    purchase_price: item.productVariation.purchase_price,
+    total: item.quantity * item.sellingPrice
+  }));
+  
+  const { data: saleItems, error: itemsError } = await supabase
+    .from('sale_items')
+    .insert(saleItemsData)
+    .select();
+  
+  if (itemsError) throw itemsError;
+  
+  return { sale, saleItems: saleItems || [] };
+}
+
+export async function validateStockAvailability(
+  cartItems: Array<{
+    productVariation: ProductVariation;
+    quantity: number;
+  }>
+): Promise<{ valid: boolean; errors: string[] }> {
+  const errors: string[] = [];
+  
+  for (const item of cartItems) {
+    if (item.quantity > item.productVariation.current_stock) {
+      errors.push(
+        `${item.productVariation.name} - Insufficient stock. Available: ${item.productVariation.current_stock}, Requested: ${item.quantity}`
+      );
+    }
+  }
+  
+  return {
+    valid: errors.length === 0,
+    errors
+  };
 } 

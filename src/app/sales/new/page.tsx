@@ -35,12 +35,13 @@ export default function NewSalePage() {
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [searchError, setSearchError] = useState('');
+  const [cartInitialized, setCartInitialized] = useState(false);
 
   // Refs
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchResultsRef = useRef<HTMLDivElement>(null);
 
-  // Load shop name and all products
+  // Load shop name, all products, and cart items
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -50,6 +51,13 @@ export default function NewSalePage() {
         // Load all products for client-side search
         const products = await searchProducts('');
         setAllProducts(products);
+        
+        // Load cart items from localStorage
+        const cartData = localStorage.getItem('cartItems');
+        if (cartData) {
+          setCartItems(JSON.parse(cartData));
+        }
+        setCartInitialized(true);
       } catch (error) {
         console.error('Error loading data:', error);
       }
@@ -57,6 +65,18 @@ export default function NewSalePage() {
     
     loadData();
   }, []);
+
+  // Save cart items to localStorage whenever they change
+  useEffect(() => {
+    // Only save/remove if cart has been initialized
+    if (!cartInitialized) return;
+    
+    if (cartItems.length > 0) {
+      localStorage.setItem('cartItems', JSON.stringify(cartItems));
+    } else {
+      localStorage.removeItem('cartItems');
+    }
+  }, [cartItems, cartInitialized]);
 
   // Fuse.js search configuration
   const fuse = new Fuse(allProducts, {
@@ -380,8 +400,20 @@ export default function NewSalePage() {
 
       {/* Scrollable Main Content */}
       <div className="flex-1 p-2 overflow-y-auto">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
-          {cartItems.map((item) => {
+        {cartItems.length === 0 ? (
+          // Empty state
+          <div className="flex flex-col items-center justify-center h-full text-center -mt-20">
+            <div className="text-6xl mb-4">🛒</div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              {t('sales.emptyCart', 'Your cart is empty')}
+            </h3>
+            <p className="text-gray-600 max-w-sm">
+              {t('sales.searchToAdd', 'Search for products above to add them to your cart')}
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
+            {cartItems.map((item) => {
             const unit = (item.productVariation as any).units;
             const fractionalQuantity = getFractionalQuantityFromValue(item.quantity, unit);
             const stockStatus = getCartItemStockStatus(item);
@@ -436,6 +468,7 @@ export default function NewSalePage() {
                         <input
                           type="number"
                           min="0"
+                          step="any"
                           value={fractionalQuantity.main}
                           onChange={(e) => updateCartItemQuantityFractional(
                             item.productVariation.id,
@@ -451,6 +484,7 @@ export default function NewSalePage() {
                           type="number"
                           min="0"
                           max={unit.subunit_factor - 1}
+                          step="any"
                           value={fractionalQuantity.sub}
                           onChange={(e) => updateCartItemQuantityFractional(
                             item.productVariation.id,
@@ -487,6 +521,7 @@ export default function NewSalePage() {
                           type="number"
                           min="0"
                           max={item.productVariation.current_stock}
+                          step="any"
                           value={item.quantity}
                           onChange={(e) => updateCartItemQuantity(item.productVariation.id, parseFloat(e.target.value) || 0)}
                           className="w-16 h-6 text-center text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 text-gray-700"
@@ -512,7 +547,7 @@ export default function NewSalePage() {
                     <input
                       type="number"
                       min="0"
-                      step="0.01"
+                      step="any"
                       value={item.sellingPrice}
                       onChange={(e) => updateCartItemPrice(item.productVariation.id, parseFloat(e.target.value) || 0)}
                       className="w-16 h-6 text-center text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 text-gray-700"
@@ -528,7 +563,8 @@ export default function NewSalePage() {
               </div>
             );
           })}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Sticky Footer */}

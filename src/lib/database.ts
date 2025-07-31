@@ -232,24 +232,122 @@ export async function createSaleItems(items: Omit<SaleItem, 'id'>[]) {
 
 // Shop Settings
 export async function getShopSettings(): Promise<ShopSettings | null> {
-  const { data, error } = await supabase
-    .from('shop_settings')
-    .select('*')
-    .single();
-  
-  if (error && error.code !== 'PGRST116') throw error; // PGRST116 = no rows returned
-  return data;
+  try {
+    // Check if user is authenticated first
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    
+    if (!user) {
+      return {
+        id: 1,
+        shop_name: 'My Shop',
+        contact: '+91 0000000000',
+        gst_number: '',
+        language: 'en'
+      };
+    }
+    
+    // Try to get settings from database
+    const { data, error } = await supabase
+      .from('shop_settings')
+      .select('*')
+      .limit(1)
+      .maybeSingle();
+    
+    if (error) {
+      if (error.code === 'PGRST116') {
+        // No settings found, return default
+        return {
+          id: 1,
+          shop_name: 'My Shop',
+          contact: '+91 0000000000',
+          gst_number: '',
+          language: 'en'
+        };
+      }
+      console.error('Settings fetch error:', error);
+      // Return default settings on any error
+      return {
+        id: 1,
+        shop_name: 'My Shop',
+        contact: '+91 0000000000',
+        gst_number: '',
+        language: 'en'
+      };
+    }
+    
+    return data;
+  } catch (error) {
+    console.error('Error fetching shop settings:', error);
+    // Return default settings on any error
+    return {
+      id: 1,
+      shop_name: 'My Shop',
+      contact: '+91 0000000000',
+      gst_number: '',
+      language: 'en'
+    };
+  }
 }
 
 export async function updateShopSettings(settings: Partial<ShopSettings>) {
-  const { data, error } = await supabase
-    .from('shop_settings')
-    .upsert(settings)
-    .select()
-    .single();
-  
-  if (error) throw error;
-  return data;
+  try {
+    // Check if user is authenticated
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    
+    if (!user) {
+      throw new Error('User not authenticated');
+    }
+
+    // Check if user has owner role
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+
+    if (userError || !userData || userData.role !== 'owner') {
+      throw new Error('Only shop owners can save settings');
+    }
+    
+                // First, get existing settings to get the ID
+            const { data: existingData, error: selectError } = await supabase
+              .from('shop_settings')
+              .select('*')
+              .limit(1)
+              .maybeSingle();
+
+            if (existingData) {
+              // Update existing settings with the same ID
+              const { data, error } = await supabase
+                .from('shop_settings')
+                .update(settings)
+                .eq('id', existingData.id)
+                .select()
+                .single();
+
+              if (error) {
+                console.error('Error updating settings:', error);
+                throw error;
+              }
+              return data;
+            } else {
+              // Create new settings (let database auto-generate ID)
+              const { data, error } = await supabase
+                .from('shop_settings')
+                .insert(settings)
+                .select()
+                .single();
+
+              if (error) {
+                console.error('Error creating settings:', error);
+                throw error;
+              }
+              return data;
+            }
+  } catch (error) {
+    console.error('Error updating shop settings:', error);
+    throw error;
+  }
 }
 
 // Users
@@ -1066,5 +1164,163 @@ function getPeriodEndDate(period: 'today' | 'lastWeek' | 'lastMonth'): string {
       return now.toISOString();
     default:
       return new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString();
+  }
+} 
+
+// Test function removed to avoid conflicts 
+
+// Debug function removed - no longer needed 
+
+// Export all shop data for backup
+export async function exportShopData(): Promise<{
+  timestamp: string;
+  shop_settings: ShopSettings | null;
+  products: Product[];
+  product_variations: ProductVariation[];
+  sales: Sale[];
+  sale_items: SaleItem[];
+  units: Unit[];
+  users: User[];
+}> {
+  try {
+    // Get all data from all tables
+    const [
+      { data: shopSettings },
+      { data: products },
+      { data: productVariations },
+      { data: sales },
+      { data: saleItems },
+      { data: units },
+      { data: users }
+    ] = await Promise.all([
+      supabase.from('shop_settings').select('*').limit(1).maybeSingle(),
+      supabase.from('products').select('*'),
+      supabase.from('product_variations').select('*'),
+      supabase.from('sales').select('*'),
+      supabase.from('sale_items').select('*'),
+      supabase.from('units').select('*'),
+      supabase.from('users').select('*')
+    ]);
+
+    const exportData = {
+      timestamp: new Date().toISOString(),
+      shop_settings: shopSettings,
+      products: products || [],
+      product_variations: productVariations || [],
+      sales: sales || [],
+      sale_items: saleItems || [],
+      units: units || [],
+      users: users || []
+    };
+
+    return exportData;
+  } catch (error) {
+    console.error('Error exporting shop data:', error);
+    throw new Error('Failed to export shop data');
+  }
+} 
+
+// Import shop data from backup
+export async function importShopData(importData: {
+  timestamp: string;
+  shop_settings: ShopSettings | null;
+  products: Product[];
+  product_variations: ProductVariation[];
+  sales: Sale[];
+  sale_items: SaleItem[];
+  units: Unit[];
+  users: User[];
+}): Promise<void> {
+  try {
+    // Validate import data structure
+    if (!importData || typeof importData !== 'object') {
+      throw new Error('Invalid backup file format');
+    }
+
+    // Check if user is authenticated and has owner role
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (!user) {
+      throw new Error('User not authenticated');
+    }
+
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+
+    if (userError || !userData || userData.role !== 'owner') {
+      throw new Error('Only shop owners can import data');
+    }
+
+    // Start transaction-like operations
+    const operations = [];
+
+    // Import units first (they're referenced by products)
+    if (importData.units && importData.units.length > 0) {
+      operations.push(
+        supabase.from('units').upsert(importData.units, { onConflict: 'id' })
+      );
+    }
+
+    // Import products
+    if (importData.products && importData.products.length > 0) {
+      operations.push(
+        supabase.from('products').upsert(importData.products, { onConflict: 'id' })
+      );
+    }
+
+    // Import product variations
+    if (importData.product_variations && importData.product_variations.length > 0) {
+      operations.push(
+        supabase.from('product_variations').upsert(importData.product_variations, { onConflict: 'id' })
+      );
+    }
+
+    // Import sales
+    if (importData.sales && importData.sales.length > 0) {
+      operations.push(
+        supabase.from('sales').upsert(importData.sales, { onConflict: 'id' })
+      );
+    }
+
+    // Import sale items
+    if (importData.sale_items && importData.sale_items.length > 0) {
+      operations.push(
+        supabase.from('sale_items').upsert(importData.sale_items, { onConflict: 'id' })
+      );
+    }
+
+    // Import shop settings
+    if (importData.shop_settings) {
+      operations.push(
+        supabase.from('shop_settings').upsert(importData.shop_settings, { onConflict: 'id' })
+      );
+    }
+
+    // Import users (be careful with this - might want to skip or handle differently)
+    if (importData.users && importData.users.length > 0) {
+      // Only import non-owner users to avoid conflicts
+      const nonOwnerUsers = importData.users.filter(user => user.role !== 'owner');
+      if (nonOwnerUsers.length > 0) {
+        operations.push(
+          supabase.from('users').upsert(nonOwnerUsers, { onConflict: 'id' })
+        );
+      }
+    }
+
+    // Execute all operations
+    const results = await Promise.all(operations);
+    
+    // Check for errors
+    for (const result of results) {
+      if (result.error) {
+        throw new Error(`Import failed: ${result.error.message}`);
+      }
+    }
+
+  } catch (error) {
+    console.error('Error importing shop data:', error);
+    throw error;
   }
 } 

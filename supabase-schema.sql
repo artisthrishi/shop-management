@@ -2423,10 +2423,10 @@ CREATE TABLE public.sales (
     total_amount numeric(12,2) NOT NULL,
     estimated_profit numeric(12,2) NOT NULL,
     invoice_number text,
+    customer_contact text,
     customer_name text,
     customer_phone text,
-    payment_method text,
-    customer_contact text
+    payment_method text
 );
 
 
@@ -3802,7 +3802,7 @@ CREATE POLICY "All authenticated users can view products" ON public.products FOR
 -- Name: shop_settings All authenticated users can view shop settings; Type: POLICY; Schema: public; Owner: postgres
 --
 
-CREATE POLICY "All authenticated users can view shop settings" ON public.shop_settings FOR SELECT USING ((auth.role() = 'authenticated'::text));
+CREATE POLICY "All authenticated users can view shop settings" ON public.shop_settings FOR SELECT USING ((auth.uid() IS NOT NULL));
 
 
 --
@@ -3835,6 +3835,14 @@ CREATE POLICY "Owners can manage products" ON public.products USING ((EXISTS ( S
 --
 
 CREATE POLICY "Owners can manage shop settings" ON public.shop_settings USING ((EXISTS ( SELECT 1
+   FROM public.users
+  WHERE ((users.id = auth.uid()) AND (users.role = 'owner'::text)))));
+
+--
+-- Name: shop_settings Owners can insert shop settings; Type: POLICY; Schema: public; Owner: postgres
+--
+
+CREATE POLICY "Owners can insert shop settings" ON public.shop_settings FOR INSERT WITH CHECK ((EXISTS ( SELECT 1
    FROM public.users
   WHERE ((users.id = auth.uid()) AND (users.role = 'owner'::text)))));
 

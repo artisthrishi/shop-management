@@ -59,7 +59,7 @@ export default function InventoryPage() {
         getUnits(),
       ]);
       
-      console.log('Products data:', productsData); // Debug log
+
       
       setProducts(productsData);
       setUnits(unitsData);

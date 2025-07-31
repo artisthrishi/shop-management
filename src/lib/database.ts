@@ -822,3 +822,249 @@ export async function updateSalePhone(saleId: number, phoneNumber: string) {
     throw error;
   }
 } 
+
+// Get sales summary for reports (total sales, profit, checkouts, items sold)
+export async function getSalesSummary(period: 'today' | 'lastWeek' | 'lastMonth'): Promise<{
+  totalSales: number;
+  estimatedProfit: number;
+  checkouts: number;
+  itemsSold: number;
+}> {
+  try {
+    const startDate = getPeriodStartDate(period);
+    const endDate = getPeriodEndDate(period);
+
+    // Get sales for the period
+    const { data: sales, error: salesError } = await supabase
+      .from('sales')
+      .select('total_amount, estimated_profit, created_at')
+      .gte('created_at', startDate)
+      .lte('created_at', endDate);
+
+    if (salesError) {
+      console.error('Error fetching sales:', salesError);
+      throw salesError;
+    }
+
+    // Get sale items for the period to count items sold
+    const { data: saleItems, error: itemsError } = await supabase
+      .from('sale_items')
+      .select('quantity, sales(created_at)')
+      .gte('sales.created_at', startDate)
+      .lte('sales.created_at', endDate);
+
+    if (itemsError) {
+      console.error('Error fetching sale items:', itemsError);
+      throw itemsError;
+    }
+
+    const salesData = sales || [];
+    const itemsData = saleItems || [];
+
+    return {
+      totalSales: salesData.reduce((sum, sale) => sum + (sale.total_amount || 0), 0),
+      estimatedProfit: salesData.reduce((sum, sale) => sum + (sale.estimated_profit || 0), 0),
+      checkouts: salesData.length,
+      itemsSold: itemsData.reduce((sum, item) => sum + (item.quantity || 0), 0)
+    };
+  } catch (error) {
+    console.error('Error in getSalesSummary:', error);
+    return {
+      totalSales: 0,
+      estimatedProfit: 0,
+      checkouts: 0,
+      itemsSold: 0
+    };
+  }
+}
+
+// Get top selling products with real data
+export async function getTopSellingProductsReal(period: 'today' | 'lastWeek' | 'lastMonth', limit = 5): Promise<Array<{
+  name: string;
+  quantity: number;
+  revenue: number;
+}>> {
+  try {
+    const startDate = getPeriodStartDate(period);
+    const endDate = getPeriodEndDate(period);
+
+    const { data, error } = await supabase
+      .from('sale_items')
+      .select(`
+        quantity,
+        selling_price,
+        product_variations(
+          name,
+          products(name, brand, category)
+        ),
+        sales(created_at)
+      `)
+      .gte('sales.created_at', startDate)
+      .lte('sales.created_at', endDate);
+
+    if (error) {
+      console.error('Error fetching top selling products:', error);
+      throw error;
+    }
+
+    // Group by product variation and calculate totals
+    const productSales = (data || []).reduce((acc: any, item: any) => {
+      const productName = item.product_variations?.products?.name || item.product_variations?.name || 'Unknown Product';
+      const key = `${productName}-${item.product_variations?.id}`;
+      
+      if (!acc[key]) {
+        acc[key] = {
+          name: productName,
+          quantity: 0,
+          revenue: 0
+        };
+      }
+      
+      acc[key].quantity += item.quantity || 0;
+      acc[key].revenue += (item.quantity || 0) * (item.selling_price || 0);
+      
+      return acc;
+    }, {});
+
+    // Convert to array and sort by revenue
+    return Object.values(productSales)
+      .sort((a: any, b: any) => b.revenue - a.revenue)
+      .slice(0, limit) as Array<{
+        name: string;
+        quantity: number;
+        revenue: number;
+      }>;
+  } catch (error) {
+    console.error('Error in getTopSellingProductsReal:', error);
+    return [];
+  }
+}
+
+// Get low stock products with real data
+export async function getLowStockProductsReal(): Promise<Array<{
+  name: string;
+  currentStock: number;
+  minStock: number;
+}>> {
+  try {
+    const { data, error } = await supabase
+      .from('product_variations')
+      .select(`
+        current_stock,
+        min_stock,
+        name,
+        products(name, brand, category)
+      `)
+      .order('current_stock', { ascending: true });
+
+    if (error) {
+      console.error('Error fetching low stock products:', error);
+      throw error;
+    }
+
+    // Filter for low stock items and format data
+    const lowStockItems = (data || [])
+      .filter(item => item.current_stock <= item.min_stock)
+      .map(item => ({
+        name: (item.products as any)?.name || item.name || 'Unknown Product',
+        currentStock: item.current_stock,
+        minStock: item.min_stock
+      }))
+      .slice(0, 5); // Return top 5 low stock items
+
+    return lowStockItems;
+  } catch (error) {
+    console.error('Error in getLowStockProductsReal:', error);
+    return [];
+  }
+}
+
+// Get payment method statistics
+export async function getPaymentMethodStats(period: 'today' | 'lastWeek' | 'lastMonth'): Promise<{
+  cash: { count: number; amount: number };
+  card: { count: number; amount: number };
+  upi: { count: number; amount: number };
+  total: { count: number; amount: number };
+}> {
+  try {
+    const { data: sales, error } = await supabase
+      .from('sales')
+      .select('payment_method, total_amount, created_at')
+      .gte('created_at', getPeriodStartDate(period))
+      .lte('created_at', getPeriodEndDate(period));
+
+    if (error) {
+      console.error('Error fetching payment method stats:', error);
+      throw error;
+    }
+
+    const stats = {
+      cash: { count: 0, amount: 0 },
+      card: { count: 0, amount: 0 },
+      upi: { count: 0, amount: 0 },
+      total: { count: 0, amount: 0 }
+    };
+
+    sales?.forEach(sale => {
+      const method = (sale.payment_method || 'cash').toLowerCase();
+      const amount = parseFloat(sale.total_amount) || 0;
+
+      if (method === 'cash') {
+        stats.cash.count++;
+        stats.cash.amount += amount;
+      } else if (method === 'card') {
+        stats.card.count++;
+        stats.card.amount += amount;
+      } else if (method === 'upi') {
+        stats.upi.count++;
+        stats.upi.amount += amount;
+      }
+
+      stats.total.count++;
+      stats.total.amount += amount;
+    });
+
+    return stats;
+  } catch (error) {
+    console.error('Error in getPaymentMethodStats:', error);
+    return {
+      cash: { count: 0, amount: 0 },
+      card: { count: 0, amount: 0 },
+      upi: { count: 0, amount: 0 },
+      total: { count: 0, amount: 0 }
+    };
+  }
+}
+
+// Helper function to get period start date
+function getPeriodStartDate(period: 'today' | 'lastWeek' | 'lastMonth'): string {
+  const now = new Date();
+  
+  switch (period) {
+    case 'today':
+      return new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+    case 'lastWeek':
+      const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      return new Date(weekAgo.getFullYear(), weekAgo.getMonth(), weekAgo.getDate()).toISOString();
+    case 'lastMonth':
+      const monthAgo = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+      return monthAgo.toISOString();
+    default:
+      return new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+  }
+}
+
+// Helper function to get period end date
+function getPeriodEndDate(period: 'today' | 'lastWeek' | 'lastMonth'): string {
+  const now = new Date();
+  
+  switch (period) {
+    case 'today':
+      return new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString();
+    case 'lastWeek':
+    case 'lastMonth':
+      return now.toISOString();
+    default:
+      return new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString();
+  }
+} 

@@ -196,7 +196,15 @@
     "checkouts": "Number of Checkouts",
     "itemsSold": "Items Sold",
     "topSelling": "Top Selling Products",
-    "lowStock": "Low Stock List"
+    "lowStock": "Low Stock List",
+    "paymentMethods": "Payment Methods",
+    "cash": "Cash",
+    "card": "Card",
+    "upi": "UPI",
+    "transactions": "transactions",
+    "total": "Total",
+    "loading": "Loading...",
+    "noData": "No payment data available"
   },
   "settings": {
     "title": "Settings",
